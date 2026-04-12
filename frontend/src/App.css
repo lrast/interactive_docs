@@ -1,0 +1,25 @@
+.react-app {
+  margin-top: 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #c8c8c0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.react-app__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.react-app__text {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.react-app__code {
+  font-size: 0.9em;
+  padding: 0.12em 0.35em;
+  background: #e8e8e4;
+  border-radius: 4px;
+}
