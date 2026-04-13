@@ -29,6 +29,8 @@ def chat_stream():
     payload = request.get_json(silent=True) or {}
     message = payload.get("message") or {}
     user_text = _text_from_parts(message.get("parts"))
+    editor_content = payload.get("editorContent") or ""
+    print("editor_content", editor_content)
 
     def generate():
         message_id = str(uuid.uuid4())
@@ -38,6 +40,11 @@ def chat_stream():
             "Stub assistant: streaming from Flask. You said: "
             + (user_text[:800] if user_text else "(empty message)")
         )
+        if editor_content:
+            reply += (
+                f"\n\nEditor content (chars={len(editor_content)}):\n"
+                + "```python\n" + editor_content[:800] + "```"
+            )
         step = 6
         for i in range(0, len(reply), step):
             chunk = reply[i: i + step]

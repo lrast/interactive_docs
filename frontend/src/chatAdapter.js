@@ -1,4 +1,5 @@
 import { parseNdjsonObjectStream } from "./ndjsonChatStream.js";
+import { getEditorContent } from "./state/editorContentStore.js";
 
 export function createChatAdapter() {
   return {
@@ -11,6 +12,7 @@ export function createChatAdapter() {
         },
         body: JSON.stringify({
           conversationId,
+          editorContent: getEditorContent(),
           message: {
             id: message.id,
             role: message.role,

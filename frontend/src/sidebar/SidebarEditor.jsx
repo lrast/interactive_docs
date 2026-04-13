@@ -63,10 +63,14 @@ const editorTheme = EditorView.theme(
 export function SidebarEditor() {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
+  const publishTimerRef = useRef(null);
 
   useEffect(() => {
     const parent = hostRef.current;
     if (!parent) return;
+
+    // Ensure other roots can read an initial snapshot.
+    setEditorContent(defaultDoc);
 
     const state = EditorState.create({
       doc: defaultDoc,
@@ -75,6 +79,17 @@ export function SidebarEditor() {
         python(),
         editorTheme,
         syntaxHighlighting(ipythonHighlightStyle),
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged) return;
+          if (publishTimerRef.current) {
+            window.clearTimeout(publishTimerRef.current);
+          }
+          // Debounce: keep global snapshot reasonably fresh without
+          // pushing on every single keystroke.
+          publishTimerRef.current = window.setTimeout(() => {
+            setEditorContent(update.state.doc.toString());
+          }, 75);
+        }),
       ],
     });
 
@@ -82,6 +97,10 @@ export function SidebarEditor() {
     viewRef.current = view;
     return () => {
       viewRef.current = null;
+      if (publishTimerRef.current) {
+        window.clearTimeout(publishTimerRef.current);
+        publishTimerRef.current = null;
+      }
       view.destroy();
     };
   }, []);
