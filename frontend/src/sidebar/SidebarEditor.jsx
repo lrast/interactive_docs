@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView, basicSetup } from "codemirror";
 import { python } from "@codemirror/lang-python";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
+import { setEditorContent } from "../state/editorContentStore.js";
+import { requestTerminalRun } from "../state/terminalRunStore.js";
 
 const defaultDoc = `# Sample
 import math
@@ -9,6 +13,18 @@ import math
 def greet(name: str) -> str:
     return f"Hello, {name}"
 `;
+
+const ipythonHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: "#0000FF", fontWeight: "600" },
+  { tag: [tags.string, tags.special(tags.string)], color: "#008000" },
+  { tag: tags.comment, color: "#408080", fontStyle: "italic" },
+  { tag: [tags.number, tags.bool, tags.null], color: "#0000FF" },
+  { tag: tags.function(tags.variableName), color: "#0000FF" },
+  { tag: tags.typeName, color: "#2B91AF" },
+  { tag: tags.definition(tags.variableName), color: "#000000" },
+  { tag: tags.operator, color: "#AA22FF" },
+  { tag: tags.punctuation, color: "#000000" },
+]);
 
 const editorTheme = EditorView.theme(
   {
@@ -46,6 +62,7 @@ const editorTheme = EditorView.theme(
 
 export function SidebarEditor() {
   const hostRef = useRef(null);
+  const viewRef = useRef(null);
 
   useEffect(() => {
     const parent = hostRef.current;
@@ -53,12 +70,57 @@ export function SidebarEditor() {
 
     const state = EditorState.create({
       doc: defaultDoc,
-      extensions: [basicSetup, python(), editorTheme],
+      extensions: [
+        basicSetup,
+        python(),
+        editorTheme,
+        syntaxHighlighting(ipythonHighlightStyle),
+      ],
     });
 
     const view = new EditorView({ state, parent });
-    return () => view.destroy();
+    viewRef.current = view;
+    return () => {
+      viewRef.current = null;
+      view.destroy();
+    };
   }, []);
 
-  return <div className="sidebar-editor-host" ref={hostRef} />;
+  const run = () => {
+    const view = viewRef.current;
+    if (!view) return;
+    const code = view.state.doc.toString();
+    setEditorContent(code);
+    const trimmed = code.replace(/\n+$/g, "");
+    const command = `${trimmed}\n\n`;
+    requestTerminalRun(command);
+  };
+
+  const buttonStyle = {
+    fontSize: 12,
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--color-border)",
+    background: "var(--color-surface-raised)",
+    color: "var(--color-text)",
+    cursor: "pointer",
+  };
+
+  return (
+    <>
+      <div className="sidebar-editor-host" ref={hostRef} />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        <button type="button" onClick={run} style={buttonStyle}>
+          Run
+        </button>
+      </div>
+    </>
+  );
 }

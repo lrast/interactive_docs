@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react";
 import { FitAddon } from "xterm-addon-fit";
 import { Terminal } from "xterm";
 import "xterm/css/xterm.css";
+import {
+  getLastTerminalRunRequest,
+  subscribeTerminalRun,
+} from "../state/terminalRunStore.js";
 
 function terminalWsUrl() {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -44,6 +48,7 @@ export function SidebarTerminal() {
     fitAddon.fit();
 
     const socket = new WebSocket(terminalWsUrl());
+    const pendingSends = [];
 
     const onData = (data) => {
       if (socket.readyState === WebSocket.OPEN) {
@@ -65,7 +70,23 @@ export function SidebarTerminal() {
       fitAddon.fit();
       sendResize(socket, term);
       term.focus();
+      while (pendingSends.length) {
+        socket.send(pendingSends.shift());
+      }
     });
+
+    const sendRunRequest = (req) => {
+      if (!req?.text) return;
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(req.text);
+      } else {
+        pendingSends.push(req.text);
+      }
+    };
+
+    const unsubscribeRun = subscribeTerminalRun(sendRunRequest);
+    const initial = getLastTerminalRunRequest();
+    if (initial) sendRunRequest(initial);
 
     const ro = new ResizeObserver(() => {
       fitAddon.fit();
@@ -80,6 +101,7 @@ export function SidebarTerminal() {
     window.addEventListener("resize", onWinResize);
 
     return () => {
+      unsubscribeRun();
       window.removeEventListener("resize", onWinResize);
       ro.disconnect();
       socket.removeEventListener("message", onMessage);

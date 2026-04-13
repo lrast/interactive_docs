@@ -40,7 +40,7 @@ def chat_stream():
         )
         step = 6
         for i in range(0, len(reply), step):
-            chunk = reply[i : i + step]
+            chunk = reply[i: i + step]
             yield _ndjson_line({"type": "text-delta", "id": text_id, "delta": chunk})
             time.sleep(0.04)
         yield _ndjson_line({"type": "text-end", "id": text_id})
