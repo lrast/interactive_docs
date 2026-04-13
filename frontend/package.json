@@ -8,12 +8,14 @@
     "build:watch": "vite build --watch"
   },
   "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.3.0",
     "@mui/material": "^7.3.0",
     "@mui/system": "^7.3.0",
     "@mui/x-chat": "^9.0.0-alpha.0",
+    "codemirror": "^6.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
