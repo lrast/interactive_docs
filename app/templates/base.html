@@ -8,10 +8,22 @@
   {% block head_extra %}{% endblock %}
 </head>
 <body>
-  <main class="container">
-    {% block content %}{% endblock %}
-    <div id="react-root"></div>
-  </main>
+  <div class="page">
+    <main class="page__main">
+      <div class="page__main-inner">
+        {% block content %}{% endblock %}
+        <div id="react-root"></div>
+      </div>
+    </main>
+    <aside class="page__sidebar" aria-label="Side panel">
+      <section class="page__sidebar-segment page__sidebar-segment--top">
+        {% block sidebar_top %}{% endblock %}
+      </section>
+      <section class="page__sidebar-segment page__sidebar-segment--bottom">
+        {% block sidebar_bottom %}{% endblock %}
+      </section>
+    </aside>
+  </div>
   {% block scripts %}{% endblock %}
 </body>
 </html>

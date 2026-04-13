@@ -8,7 +8,18 @@
 
 {% block content %}
   <h1>interactive documentation</h1>
-  <p>Flask is running. Edit <code>app/templates/</code> and <code>app/static/</code> to build the UI.</p>
+  <p>Main column (two-thirds). Put primary content, docs body, or canvas here.</p>
+  <p>Edit <code>app/templates/</code>, <code>app/static/css/style.css</code>, and <code>frontend/src/</code> as you build out the UI.</p>
+{% endblock %}
+
+{% block sidebar_top %}
+  <p class="segment-label">Right · upper (two-thirds of sidebar)</p>
+  <p>Secondary panel: outline, TOC, or tools.</p>
+{% endblock %}
+
+{% block sidebar_bottom %}
+  <p class="segment-label">Right · lower (one-third of sidebar)</p>
+  <p>Notes, status, or compact controls.</p>
 {% endblock %}
 
 {% block scripts %}
