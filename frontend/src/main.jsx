@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import App from "./App.jsx";
 import { SidebarEditor } from "./sidebar/SidebarEditor.jsx";
+import { SidebarTerminal } from "./sidebar/SidebarTerminal.jsx";
 import { appTheme } from "./theme.js";
 import "./App.css";
 
@@ -29,4 +30,9 @@ if (chatEl) {
 const sidebarEl = document.getElementById("sidebar-editor-root");
 if (sidebarEl) {
   createRoot(sidebarEl).render(shell(<SidebarEditor />));
+}
+
+const terminalEl = document.getElementById("sidebar-terminal-root");
+if (terminalEl) {
+  createRoot(terminalEl).render(shell(<SidebarTerminal />));
 }

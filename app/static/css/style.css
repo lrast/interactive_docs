@@ -119,7 +119,30 @@ body {
 }
 
 .page__sidebar-segment--bottom {
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface-raised);
+}
+
+.page__sidebar-segment--bottom #sidebar-terminal-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-terminal-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.sidebar-terminal-host .xterm {
+  height: 100%;
+}
+
+.sidebar-terminal-host .xterm-viewport {
+  background-color: var(--color-code-bg);
 }
 
 .segment-label {

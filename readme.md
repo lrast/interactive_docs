@@ -39,8 +39,10 @@ The build writes `app/static/dist/assets/main.js` and `main.css`. Flask serves t
 **Recommended (Flask CLI, reload on Python/template changes):**
 
 ```bash
-flask --app app:create_app run --debug
+flask --app app:create_app run --debug --host 127.0.0.1
 ```
+
+Use **`--host 127.0.0.1`** (not `0.0.0.0`) so the sidebar **IPython terminal** (WebSocket + PTY) is not exposed on your LAN. The terminal runs shell code as the same OS user as Flask.
 
 **Alternatives:**
 
@@ -54,6 +56,13 @@ python -m app
 
 Open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
 
+## Sidebar IPython terminal (dev)
+
+- The lower right sidebar runs a real **`ipython`** session in the browser (**xterm.js** + **`/ws/terminal`** WebSocket + PTY). Requires **`ipython`** from `requirements.txt` (installed with the venv).
+- **Unix only** (macOS / Linux). On Windows the WebSocket responds with an unsupported message instead of spawning a PTY.
+- **Security:** this is **arbitrary code execution** as your Flask OS user. Treat it as **localhost-only, single-user tooling**. Do not expose it on the public internet without strong isolation, auth, and hardening.
+- Implementation: [`app/terminal_session.py`](app/terminal_session.py), [`app/terminal_ws.py`](app/terminal_ws.py).
+
 ## Chat API (stub)
 
 - **`POST /api/chat`** — JSON body: `{ "conversationId": "...", "message": { "id", "role", "parts" } }`.
@@ -63,13 +72,14 @@ Open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
 ## Frontend development
 
 - **Rebuild on save + Flask:** in `frontend/`, run `npm run build:watch` in one terminal and Flask in another. Refresh the browser after each build.
-- **Vite dev server:** `cd frontend && npm run dev` (e.g. [http://localhost:5173/](http://localhost:5173/)). **`vite.config.js`** proxies **`/api`** to **`http://127.0.0.1:5000`** — run Flask on port 5000 while using Vite for HMR. The Vite `index.html` only mounts React; for the full Jinja layout, use Flask.
+- **Vite dev server:** `cd frontend && npm run dev` (e.g. [http://localhost:5173/](http://localhost:5173/)). **`vite.config.js`** proxies **`/api`** and **`/ws`** to **`http://127.0.0.1:5000`** — run Flask on port 5000 while using Vite for HMR. The Vite `index.html` only mounts React; for the full Jinja layout, use Flask.
 
 ## Layout
 
 - `app/__init__.py` — application factory `create_app()`
 - `app/routes.py` — routes (blueprint `main`)
 - `app/chat.py` — `POST /api/chat` streaming stub (blueprint `chat`, prefix `/api`)
+- `app/terminal_ws.py` — WebSocket **`/ws/terminal`** (flask-sock) for the sidebar IPython PTY
 - `app/templates/` — Jinja; React mounts at `#react-root` in **`page__chat-bar`** (bottom of the left column only)
 - `app/static/` — CSS and Vite output under `app/static/dist/`
 - `frontend/` — Vite + React source, `npm run build` → `app/static/dist/`
