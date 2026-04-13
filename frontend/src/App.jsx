@@ -1,16 +1,28 @@
-import "./App.css";
+import { ChatBox } from "@mui/x-chat";
+import { createChatAdapter } from "./chatAdapter.js";
+
+const adapter = createChatAdapter();
 
 export default function App() {
   return (
-    <section className="react-app" aria-label="React UI">
-      <h2 className="react-app__title">React</h2>
-      <p className="react-app__text">
-        This island is rendered by Vite + React. Edit{" "}
-        <code className="react-app__code">frontend/src/</code> and run{" "}
-        <code className="react-app__code">npm run build</code> (or{" "}
-        <code className="react-app__code">npm run dev</code> for the Vite dev
-        server).
-      </p>
-    </section>
+    <ChatBox
+      adapter={adapter}
+      variant="compact"
+      density="compact"
+      initialConversations={[{ id: "main", title: "Assistant" }]}
+      initialActiveConversationId="main"
+      features={{
+        attachments: false,
+        helperText: false,
+        conversationHeader: true,
+        suggestions: false,
+      }}
+      sx={{
+        height: "100%",
+        minHeight: 0,
+        borderRadius: 0,
+        bgcolor: "background.paper",
+      }}
+    />
   );
 }

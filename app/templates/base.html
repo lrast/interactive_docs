@@ -10,9 +10,13 @@
 <body>
   <div class="page">
     <main class="page__main">
-      <div class="page__main-inner">
-        {% block content %}{% endblock %}
-        <div id="react-root"></div>
+      <div class="page__main-stack">
+        <div class="page__main-inner">
+          {% block content %}{% endblock %}
+        </div>
+        <div class="page__chat-bar" aria-label="Chat">
+          <div id="react-root"></div>
+        </div>
       </div>
     </main>
     <aside class="page__sidebar" aria-label="Side panel">

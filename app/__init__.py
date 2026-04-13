@@ -8,8 +8,9 @@ def create_app() -> Flask:
         static_folder="static",
     )
 
-    from . import routes
+    from . import chat, routes
 
     app.register_blueprint(routes.bp)
+    app.register_blueprint(chat.bp)
 
     return app
