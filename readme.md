@@ -80,6 +80,6 @@ Open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
 - `app/routes.py` — routes (blueprint `main`)
 - `app/chat.py` — `POST /api/chat` streaming stub (blueprint `chat`, prefix `/api`)
 - `app/terminal_ws.py` — WebSocket **`/ws/terminal`** (flask-sock) for the sidebar IPython PTY
-- `app/templates/` — Jinja; React mounts at `#react-root` in **`page__chat-bar`** (bottom of the left column only)
+- `app/templates/` — Jinja; React mounts at `#main-chat-root` in **`page__chat-bar`** (bottom of the left column only)
 - `app/static/` — CSS and Vite output under `app/static/dist/`
 - `frontend/` — Vite + React source, `npm run build` → `app/static/dist/`

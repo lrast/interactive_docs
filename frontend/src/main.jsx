@@ -5,6 +5,7 @@ import App from "./App.jsx";
 import { SidebarEditor } from "./sidebar/SidebarEditor.jsx";
 import { SidebarTerminal } from "./sidebar/SidebarTerminal.jsx";
 import { appTheme } from "./theme.js";
+import { initMainDocIframe } from "./state/mainDocIframeStore.js";
 import "./App.css";
 
 function shell(children) {
@@ -15,7 +16,9 @@ function shell(children) {
   );
 }
 
-const chatEl = document.getElementById("react-root");
+initMainDocIframe({ exposeGlobalSetter: true });
+
+const chatEl = document.getElementById("main-chat-root");
 if (chatEl) {
   createRoot(chatEl).render(
     shell(

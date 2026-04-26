@@ -11,6 +11,14 @@ from flask import Blueprint, Response, jsonify, request, stream_with_context, se
 
 bp = Blueprint("chat", __name__, url_prefix="/api")
 
+PLACEHOLDER_EDITOR_CONTENT = """# Sample
+import math
+
+def greet(name: str) -> str:
+    return f"Hello, {name}"
+"""
+PLACEHOLDER_DISPLAYED_URL = "https://mui.com/x/react-chat/"
+
 
 @bp.get("/session")
 def browser_session():
@@ -38,11 +46,26 @@ def chat_stream():
     message = payload.get("message") or {}
     user_text = _text_from_parts(message.get("parts"))
     editor_content = payload.get("editorContent") or ""
+    displayed_URL = payload.get("displayedURL") or ""
+
+    
+    # Returned to the frontend to drive UI state; placeholder for now.
+    editor_content = PLACEHOLDER_EDITOR_CONTENT
+    displayed_URL = PLACEHOLDER_DISPLAYED_URL
+
+    current = session.get("test") or ""
 
     def generate():
         message_id = str(uuid.uuid4())
         text_id = "assistant-text-1"
-        yield _ndjson_line({"type": "start", "messageId": message_id})
+        yield _ndjson_line(
+            {
+                "type": "start",
+                "messageId": message_id,
+                "editor_content": editor_content,
+                "displayed_URL": displayed_URL,
+            }
+        )
 
         # call aisuite
         #response = aisuite.chat.completions.create(
@@ -62,17 +85,29 @@ def chat_stream():
         for i in range(0, len(reply), step):
             chunk = reply[i: i + step]
             print("chunk", chunk)
-            yield _ndjson_line({"type": "text-delta", "id": text_id, "delta": chunk,
-                                "editorContent": editor_content})
+            yield _ndjson_line(
+                {
+                    "type": "text-delta",
+                    "id": text_id,
+                    "delta": chunk,
+                    "editor_content": editor_content,
+                    "displayed_URL": displayed_URL,
+                }
+            )
             time.sleep(0.04)
         yield _ndjson_line({"type": "text-end", "id": text_id})
-        yield _ndjson_line({"type": "finish", "messageId": message_id})
+        yield _ndjson_line(
+            {
+                "type": "finish",
+                "messageId": message_id,
+                "editor_content": editor_content,
+                "displayed_URL": displayed_URL,
+            }
+        )
 
     print('session', session)
     print('request session', request.cookies.get('session'))
     print('browser session', browser_session)
-
-    current = session.get("test") or ""
 
     session['test'] = current + '_run'
     session.modified = True

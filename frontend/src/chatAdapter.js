@@ -1,5 +1,19 @@
 import { parseNdjsonObjectStream } from "./ndjsonChatStream.js";
 import { getEditorContent } from "./state/editorContentStore.js";
+import { setEditorContent } from "./state/editorContentStore.js";
+import { setMainDocIframeSrc } from "./state/mainDocIframeStore.js";
+
+function applyUiStateFromChunk(chunk) {
+  if (!chunk || typeof chunk !== "object") return;
+
+  if (typeof chunk.editor_content === "string") {
+    setEditorContent(chunk.editor_content);
+  }
+
+  if (typeof chunk.displayed_URL === "string") {
+    setMainDocIframeSrc(chunk.displayed_URL);
+  }
+}
 
 export function createChatAdapter() {
   return {
@@ -31,7 +45,15 @@ export function createChatAdapter() {
       }
       return res.body
         .pipeThrough(new TextDecoderStream())
-        .pipeThrough(parseNdjsonObjectStream());
+        .pipeThrough(parseNdjsonObjectStream())
+        .pipeThrough(
+          new TransformStream({
+            transform(chunk, controller) {
+              applyUiStateFromChunk(chunk);
+              controller.enqueue(chunk);
+            },
+          }),
+        );
     },
   };
 }

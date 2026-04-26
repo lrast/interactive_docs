@@ -1,4 +1,4 @@
-/* Vite emits main.css for Flask; #react-root height matches chat bar layout. */
-#react-root {
+/* Vite emits main.css for Flask; #main-chat-root height matches chat bar layout. */
+#main-chat-root {
   height: 100%;
 }

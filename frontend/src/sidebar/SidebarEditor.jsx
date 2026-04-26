@@ -4,15 +4,14 @@ import { EditorView, basicSetup } from "codemirror";
 import { python } from "@codemirror/lang-python";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
-import { setEditorContent } from "../state/editorContentStore.js";
+import {
+  getEditorContent,
+  setEditorContent,
+  subscribeEditorContent,
+} from "../state/editorContentStore.js";
 import { requestTerminalRun } from "../state/terminalRunStore.js";
 
-const defaultDoc = `# Sample
-import math
-
-def greet(name: str) -> str:
-    return f"Hello, {name}"
-`;
+const defaultDoc = '';
 
 const ipythonHighlightStyle = HighlightStyle.define([
   { tag: tags.keyword, color: "#0000FF", fontWeight: "600" },
@@ -95,7 +94,21 @@ export function SidebarEditor() {
 
     const view = new EditorView({ state, parent });
     viewRef.current = view;
+
+    const syncFromStore = () => {
+      const next = getEditorContent();
+      const current = view.state.doc.toString();
+      if (next === current) return;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: next },
+      });
+    };
+    const unsubscribe = subscribeEditorContent(syncFromStore);
+    // In case something updated the store before we subscribed.
+    syncFromStore();
+
     return () => {
+      unsubscribe();
       viewRef.current = null;
       if (publishTimerRef.current) {
         window.clearTimeout(publishTimerRef.current);
