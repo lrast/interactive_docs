@@ -3,11 +3,19 @@ from __future__ import annotations
 import json
 import time
 import uuid
+#import aisuite
+
 from typing import Any
 
-from flask import Blueprint, Response, request, stream_with_context
+from flask import Blueprint, Response, jsonify, request, stream_with_context, session
 
 bp = Blueprint("chat", __name__, url_prefix="/api")
+
+
+@bp.get("/session")
+def browser_session():
+    """Stable per-browser id (signed cookie session). Used for server-side scoping."""
+    return jsonify({"browserSessionId": session.get("browser_id")})
 
 
 def _text_from_parts(parts: list[Any] | None) -> str:
@@ -30,28 +38,44 @@ def chat_stream():
     message = payload.get("message") or {}
     user_text = _text_from_parts(message.get("parts"))
     editor_content = payload.get("editorContent") or ""
-    print("editor_content", editor_content)
 
     def generate():
         message_id = str(uuid.uuid4())
         text_id = "assistant-text-1"
         yield _ndjson_line({"type": "start", "messageId": message_id})
+
+        # call aisuite
+        #response = aisuite.chat.completions.create(
+        #    model="gpt-4o-mini",
+        #    messages=[
+        #        {"role": "user", "content": user_text},
+        #    ],
+        #)
+
         reply = (
             "Stub assistant: streaming from Flask. You said: "
             + (user_text[:800] if user_text else "(empty message)")
+            + ' ' + current
         )
-        if editor_content:
-            reply += (
-                f"\n\nEditor content (chars={len(editor_content)}):\n"
-                + "```python\n" + editor_content[:800] + "```"
-            )
+
         step = 6
         for i in range(0, len(reply), step):
             chunk = reply[i: i + step]
-            yield _ndjson_line({"type": "text-delta", "id": text_id, "delta": chunk})
+            print("chunk", chunk)
+            yield _ndjson_line({"type": "text-delta", "id": text_id, "delta": chunk,
+                                "editorContent": editor_content})
             time.sleep(0.04)
         yield _ndjson_line({"type": "text-end", "id": text_id})
         yield _ndjson_line({"type": "finish", "messageId": message_id})
+
+    print('session', session)
+    print('request session', request.cookies.get('session'))
+    print('browser session', browser_session)
+
+    current = session.get("test") or ""
+
+    session['test'] = current + '_run'
+    session.modified = True
 
     return Response(
         stream_with_context(generate()),

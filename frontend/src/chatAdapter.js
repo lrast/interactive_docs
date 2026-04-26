@@ -6,6 +6,7 @@ export function createChatAdapter() {
     async sendMessage({ message, conversationId, signal }) {
       const res = await fetch("/api/chat", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/x-ndjson",
