@@ -1,6 +1,11 @@
 # interactive documentation
 
-Local web app: Flask backend, HTML templates (Jinja2), hand-written CSS under `app/static/css/`, and **React (JSX)** built with **Vite** into `app/static/dist/` for pages that opt in.
+Quick app, providing access to documentation, a text editor, and terminal in one place, with an AI agent to tie them together.
+
+
+## Overview
+
+Local web app: Flask backend, HTML templates (Jinja2), CSS under `app/static/css/`, and **React (JSX)** built with **Vite** into `app/static/dist/` for pages that opt in.
 
 The home page includes a **chat bar** at the **bottom of the main (left) column** built with [**MUI X Chat**](https://mui.com/x/react-chat/) (`@mui/x-chat`) and **Material UI**. It talks to Flask **`POST /api/chat`**, which streams **newline-delimited JSON** chunks compatible with MUI X Chat’s stream processor.
 
