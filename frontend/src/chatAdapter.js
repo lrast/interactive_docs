@@ -6,6 +6,16 @@ import { setMainDocIframeSrc } from "./state/mainDocIframeStore.js";
 function applyUiStateFromChunk(chunk) {
   if (!chunk || typeof chunk !== "object") return;
 
+  if (
+    chunk.type &&
+    chunk.type !== "ui-state" &&
+    chunk.type !== "finish" &&
+    typeof chunk.editorContent !== "string" &&
+    typeof chunk.displayedUrl !== "string"
+  ) {
+    return;
+  }
+
   if (typeof chunk.editorContent === "string") {
     setEditorContent(chunk.editorContent);
   }

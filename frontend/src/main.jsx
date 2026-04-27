@@ -16,7 +16,8 @@ function shell(children) {
   );
 }
 
-initMainDocIframe({ exposeGlobalSetter: true });
+const IS_DEV = Boolean(import.meta?.env?.DEV);
+initMainDocIframe({ exposeGlobalSetter: IS_DEV });
 
 const chatEl = document.getElementById("main-chat-root");
 if (chatEl) {

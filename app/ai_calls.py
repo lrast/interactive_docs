@@ -1,3 +1,5 @@
+import os
+
 from pydantic_ai import Agent
 
 from pathlib import Path
@@ -37,6 +39,15 @@ def _dump_message_history(messages) -> list[dict]:
     return ModelMessagesTypeAdapter.dump_python(messages, mode="json")
 
 
+def _cap_message_history(messages, max_messages: int):
+    if max_messages <= 0:
+        return messages
+    try:
+        return messages[-max_messages:]
+    except Exception:
+        return messages
+
+
 def call_ai(user_input: dict, session: dict) -> AiReply:
     """ Handler for AI agent calls"""
     user_prompt = user_prompt_template.format(**user_input)
@@ -44,7 +55,14 @@ def call_ai(user_input: dict, session: dict) -> AiReply:
     message_history = _load_message_history(session)
     result = agent.run_sync(user_prompt, message_history=message_history)
 
-    session["message_history"] = _dump_message_history(result.all_messages())
+    try:
+        max_messages = int(os.environ.get("MAX_HISTORY_MESSAGES", "80"))
+    except Exception:
+        max_messages = 80
+
+    session["message_history"] = _dump_message_history(
+        _cap_message_history(result.all_messages(), max_messages)
+    )
     session.modified = True
 
     return result.output

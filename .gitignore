@@ -17,3 +17,6 @@ app/static/dist/*
 .mypy_cache/
 .ruff_cache/
 .DS_Store
+
+# Runtime artifacts
+instance/sessions/

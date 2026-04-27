@@ -12,6 +12,7 @@ from app.ai_calls import call_ai
 
 bp = Blueprint("chat", __name__, url_prefix="/api")
 
+
 @bp.get("/session")
 def browser_session():
     """Stable per-browser id (signed cookie session). Used for server-side scoping."""
@@ -39,12 +40,9 @@ def chat_stream():
     user_message = _text_from_parts(message.get("parts"))
 
     # Wire schema uses camelCase; backend uses snake_case internally.
-    # We keep fallbacks for older clients during the transition.
     editor_content = payload.get("editorContent") or ""
     displayed_url = payload.get("displayedUrl") or payload.get("displayedURL") or ""
 
-    # IMPORTANT: This endpoint streams. The session cookie can only be set in headers,
-    # so we must call the AI (which mutates `session`) BEFORE we yield any bytes.
     reply = call_ai(
         {
             "user_message": user_message,
@@ -69,6 +67,15 @@ def chat_stream():
             }
         )
 
+        # Send UI state separately from text deltas to keep the streaming protocol lean.
+        yield _ndjson_line(
+            {
+                "type": "ui-state",
+                "editorContent": editor_content,
+                "displayedUrl": documentation_url,
+            }
+        )
+
         step = 6
         for i in range(0, len(response), step):
             chunk = response[i: i + step]
@@ -77,8 +84,6 @@ def chat_stream():
                     "type": "text-delta",
                     "id": text_id,
                     "delta": chunk,
-                    "editorContent": editor_content,
-                    "displayedUrl": documentation_url,
                 }
             )
             time.sleep(0.04)

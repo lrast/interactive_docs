@@ -24,10 +24,17 @@ export function setMainDocIframeSrc(src) {
   return true;
 }
 
-export function initMainDocIframe({ exposeGlobalSetter = true } = {}) {
+export function initMainDocIframe({ exposeGlobalSetter = false } = {}) {
   if (exposeGlobalSetter) {
     // Allow other frontend code (or the console) to control the main iframe.
     window.setMainDocIframeSrc = setMainDocIframeSrc;
+  } else if ("setMainDocIframeSrc" in window) {
+    // Reduce accidental global surface area in prod (or when disabled).
+    try {
+      delete window.setMainDocIframeSrc;
+    } catch {
+      // Ignore if the property is non-configurable.
+    }
   }
 
   const iframe = getIframeEl();

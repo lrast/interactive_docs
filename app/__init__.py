@@ -3,6 +3,7 @@ import uuid
 from datetime import timedelta
 
 from flask import Flask, request, session
+from flask_session import Session
 
 
 def create_app() -> Flask:
@@ -22,6 +23,19 @@ def create_app() -> Flask:
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
         days=int(os.environ.get("SESSION_LIFETIME_DAYS", "31"))
     )
+
+    # Store session data server-side (avoid signed-cookie size limits).
+    app.config["SESSION_TYPE"] = os.environ.get("FLASK_SESSION_TYPE", "filesystem")
+    app.config["SESSION_USE_SIGNER"] = True
+    app.config["SESSION_PERMANENT"] = True
+    if app.config["SESSION_TYPE"] == "filesystem":
+        session_dir = os.environ.get(
+            "FLASK_SESSION_FILE_DIR", os.path.join(app.instance_path, "sessions")
+        )
+        os.makedirs(session_dir, exist_ok=True)
+        app.config["SESSION_FILE_DIR"] = session_dir
+
+    Session(app)
 
     @app.before_request
     def ensure_browser_session() -> None:
