@@ -29,8 +29,6 @@ def create_app() -> Flask:
             return
         session.permanent = True
         session.setdefault("browser_id", str(uuid.uuid4()))
-        session.setdefault("chat_history", [])
-        session.setdefault("test", 'test')
 
     from . import chat, routes, terminal_ws
 

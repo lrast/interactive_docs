@@ -1,0 +1,11 @@
+__User Message:__
+
+{user_message}
+
+__Current code:__
+
+{editor_content}
+
+__Current documentation url:__
+
+{displayed_url}

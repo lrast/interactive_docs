@@ -3,22 +3,14 @@ from __future__ import annotations
 import json
 import time
 import uuid
-#import aisuite
 
 from typing import Any
 
 from flask import Blueprint, Response, jsonify, request, stream_with_context, session
 
+from app.ai_calls import call_ai
+
 bp = Blueprint("chat", __name__, url_prefix="/api")
-
-PLACEHOLDER_EDITOR_CONTENT = """# Sample
-import math
-
-def greet(name: str) -> str:
-    return f"Hello, {name}"
-"""
-PLACEHOLDER_DISPLAYED_URL = "https://mui.com/x/react-chat/"
-
 
 @bp.get("/session")
 def browser_session():
@@ -44,54 +36,49 @@ def _ndjson_line(obj: dict) -> str:
 def chat_stream():
     payload = request.get_json(silent=True) or {}
     message = payload.get("message") or {}
-    user_text = _text_from_parts(message.get("parts"))
+    user_message = _text_from_parts(message.get("parts"))
+
+    # Wire schema uses camelCase; backend uses snake_case internally.
+    # We keep fallbacks for older clients during the transition.
     editor_content = payload.get("editorContent") or ""
-    displayed_URL = payload.get("displayedURL") or ""
+    displayed_url = payload.get("displayedUrl") or payload.get("displayedURL") or ""
 
-    
-    # Returned to the frontend to drive UI state; placeholder for now.
-    editor_content = PLACEHOLDER_EDITOR_CONTENT
-    displayed_URL = PLACEHOLDER_DISPLAYED_URL
+    # IMPORTANT: This endpoint streams. The session cookie can only be set in headers,
+    # so we must call the AI (which mutates `session`) BEFORE we yield any bytes.
+    reply = call_ai(
+        {
+            "user_message": user_message,
+            "editor_content": editor_content,
+            "displayed_url": displayed_url,
+        },
+        session,
+    )
 
-    current = session.get("test") or ""
+    response = reply.response
+    editor_content = reply.editor_content
+    documentation_url = reply.documentation_url
 
     def generate():
         message_id = str(uuid.uuid4())
         text_id = "assistant-text-1"
+
         yield _ndjson_line(
             {
                 "type": "start",
                 "messageId": message_id,
-                "editor_content": editor_content,
-                "displayed_URL": displayed_URL,
             }
         )
 
-        # call aisuite
-        #response = aisuite.chat.completions.create(
-        #    model="gpt-4o-mini",
-        #    messages=[
-        #        {"role": "user", "content": user_text},
-        #    ],
-        #)
-
-        reply = (
-            "Stub assistant: streaming from Flask. You said: "
-            + (user_text[:800] if user_text else "(empty message)")
-            + ' ' + current
-        )
-
         step = 6
-        for i in range(0, len(reply), step):
-            chunk = reply[i: i + step]
-            print("chunk", chunk)
+        for i in range(0, len(response), step):
+            chunk = response[i: i + step]
             yield _ndjson_line(
                 {
                     "type": "text-delta",
                     "id": text_id,
                     "delta": chunk,
-                    "editor_content": editor_content,
-                    "displayed_URL": displayed_URL,
+                    "editorContent": editor_content,
+                    "displayedUrl": documentation_url,
                 }
             )
             time.sleep(0.04)
@@ -100,17 +87,10 @@ def chat_stream():
             {
                 "type": "finish",
                 "messageId": message_id,
-                "editor_content": editor_content,
-                "displayed_URL": displayed_URL,
+                "editorContent": editor_content,
+                "displayedUrl": documentation_url,
             }
         )
-
-    print('session', session)
-    print('request session', request.cookies.get('session'))
-    print('browser session', browser_session)
-
-    session['test'] = current + '_run'
-    session.modified = True
 
     return Response(
         stream_with_context(generate()),
