@@ -11,7 +11,7 @@ The home page includes a **chat bar** at the **bottom of the main (left) column*
 
 **`@mui/x-chat` is alpha** on npm; APIs may change between releases. Pin or upgrade deliberately.
 
-Requires **Python 3.9+** and **Node.js 18+**.
+Requires **Python 3.10+** and **Node.js 18+**.
 
 ## Setup
 
@@ -67,6 +67,61 @@ Open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
 - **Unix only** (macOS / Linux). On Windows the WebSocket responds with an unsupported message instead of spawning a PTY.
 - **Security:** this is **arbitrary code execution** as your Flask OS user. Treat it as **localhost-only, single-user tooling**. Do not expose it on the public internet without strong isolation, auth, and hardening.
 - Implementation: [`app/terminal_session.py`](app/terminal_session.py), [`app/terminal_ws.py`](app/terminal_ws.py).
+
+## Terminal providers (local vs E2B)
+
+The app supports multiple terminal execution providers controlled by env vars.
+
+- **`TERMINAL_PROVIDER=local`** (default): local PTY + `ipython` on the same machine as Flask (**dev-only**; localhost guarded).
+- **`TERMINAL_PROVIDER=e2b`**: run the terminal inside an **E2B sandbox** (safer for deployment).
+- **`TERMINAL_PROVIDER=disabled`**: disables the terminal WebSocket.
+
+### E2B setup
+
+- Install deps:
+
+```bash
+pip install -r requirements.txt
+```
+
+- Set env:
+  - **`E2B_API_KEY`**: required by the E2B SDK
+  - **`TERMINAL_PROVIDER=e2b`**
+  - **`E2B_TEMPLATE_NAME=interactive-docs-ipython`** (recommended; see below)
+
+### E2B IPython template (recommended)
+
+The default E2B base sandbox may not include `ipython`. To ensure the terminal starts an IPython REPL **without enabling outbound network at runtime**, build a custom E2B template that bakes `ipython` in.
+
+- Build the template:
+
+```bash
+python e2b/build_template.py
+```
+
+- Then run the app with:
+  - **`E2B_TEMPLATE_NAME=interactive-docs-ipython`**
+  - **`E2B_ALLOW_INTERNET_ACCESS=0`** (default)
+
+### WebSocket security (recommended for deploy)
+
+When token/origin enforcement is enabled (defaults are secure for `e2b`):
+
+- The frontend calls **`POST /api/terminal/token`** to mint a short-lived one-time token.
+- The terminal WebSocket must connect to **`/ws/terminal?token=...`**.
+- The server rejects mismatched `Origin` and invalid/expired tokens.
+
+Config env vars:
+
+- **`TERMINAL_REQUIRE_TOKEN`**: `1|0` (defaults to `1` for `e2b`, `0` for `local`)
+- **`TERMINAL_ENFORCE_ORIGIN`**: `1|0` (default `1`)
+- **`TERMINAL_WS_TOKEN_TTL_SECONDS`**: token TTL (default `60`)
+
+### Limits / abuse controls
+
+- **`TERMINAL_MAX_SESSION_SECONDS`**: max WS session duration (default `3600`, set `0` to disable)
+- **`TERMINAL_IDLE_TIMEOUT_SECONDS`**: idle timeout (default `300`, set `0` to disable)
+- **`TERMINAL_MAX_INBOUND_BYTES`**: per-message size limit (default `65536`)
 
 ## Chat API (stub)
 

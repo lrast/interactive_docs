@@ -47,11 +47,12 @@ export function SidebarTerminal() {
     term.open(host);
     fitAddon.fit();
 
-    const socket = new WebSocket(terminalWsUrl());
+    let socket = null;
+    let cancelled = false;
     const pendingSends = [];
 
     const onData = (data) => {
-      if (socket.readyState === WebSocket.OPEN) {
+      if (socket?.readyState === WebSocket.OPEN) {
         socket.send(data);
       }
     };
@@ -64,20 +65,10 @@ export function SidebarTerminal() {
         term.write(new TextDecoder("utf-8", { fatal: false }).decode(ev.data));
       }
     };
-    socket.addEventListener("message", onMessage);
-
-    socket.addEventListener("open", () => {
-      fitAddon.fit();
-      sendResize(socket, term);
-      term.focus();
-      while (pendingSends.length) {
-        socket.send(pendingSends.shift());
-      }
-    });
 
     const sendRunRequest = (req) => {
       if (!req?.text) return;
-      if (socket.readyState === WebSocket.OPEN) {
+      if (socket?.readyState === WebSocket.OPEN) {
         socket.send(req.text);
       } else {
         pendingSends.push(req.text);
@@ -100,13 +91,50 @@ export function SidebarTerminal() {
     };
     window.addEventListener("resize", onWinResize);
 
+    const startSocket = async () => {
+      let token = "";
+      try {
+        const res = await fetch("/api/terminal/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          credentials: "same-origin",
+        });
+        if (res.ok) {
+          const json = await res.json();
+          token = typeof json?.token === "string" ? json.token : "";
+        }
+      } catch {
+        // ignore; local dev may not require token
+      }
+
+      if (cancelled) return;
+
+      const base = terminalWsUrl();
+      const url = token ? `${base}?token=${encodeURIComponent(token)}` : base;
+      socket = new WebSocket(url);
+      socket.addEventListener("message", onMessage);
+
+      socket.addEventListener("open", () => {
+        fitAddon.fit();
+        sendResize(socket, term);
+        term.focus();
+        while (pendingSends.length) {
+          socket.send(pendingSends.shift());
+        }
+      });
+    };
+
+    startSocket();
+
     return () => {
+      cancelled = true;
       unsubscribeRun();
       window.removeEventListener("resize", onWinResize);
       ro.disconnect();
-      socket.removeEventListener("message", onMessage);
+      socket?.removeEventListener("message", onMessage);
       try {
-        socket.close();
+        socket?.close();
       } catch {
         /* ignore */
       }
