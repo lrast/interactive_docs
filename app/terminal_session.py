@@ -17,7 +17,7 @@ import time
 
 from typing import Any, Callable
 
-from flask import current_app
+from flask import current_app, session
 
 if sys.platform != "win32":
     import fcntl
@@ -251,6 +251,11 @@ def handle_terminal_ws_e2b(ws) -> None:
                 allow_internet_access=allow_internet,
             )
 
+        try:
+            session["e2b_terminal_sandbox_id"] = sandbox.sandbox_id
+        except Exception:
+            pass
+
         terminal = sandbox.pty.create(
             PtySize(rows=24, cols=80),
             timeout=0,  # keep alive; we enforce our own caps above
@@ -336,6 +341,11 @@ def handle_terminal_ws_e2b(ws) -> None:
                     sandbox.pty.kill(terminal_pid)
                 except Exception:
                     pass
+            try:
+                if session.get("e2b_terminal_sandbox_id") == getattr(sandbox, "sandbox_id", None):
+                    session.pop("e2b_terminal_sandbox_id", None)
+            except Exception:
+                pass
             if sandbox is not None:
                 # Close/free sandbox resources if supported by SDK version.
                 close_fn: Callable[[], Any] | None = getattr(sandbox, "close", None)

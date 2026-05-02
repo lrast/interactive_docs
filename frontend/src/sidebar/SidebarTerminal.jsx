@@ -91,6 +91,40 @@ export function SidebarTerminal() {
     };
     window.addEventListener("resize", onWinResize);
 
+    let sentKill = false;
+    const killSandbox = () => {
+      if (sentKill) return;
+      sentKill = true;
+      try {
+        const body = new Blob(["{}"], { type: "application/json" });
+        if (navigator?.sendBeacon) {
+          navigator.sendBeacon("/api/terminal/kill", body);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        fetch("/api/terminal/kill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+          credentials: "same-origin",
+          keepalive: true,
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    const onPageHide = () => killSandbox();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") killSandbox();
+    };
+
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     const startSocket = async () => {
       let token = "";
       try {
@@ -129,8 +163,11 @@ export function SidebarTerminal() {
 
     return () => {
       cancelled = true;
+      killSandbox();
       unsubscribeRun();
       window.removeEventListener("resize", onWinResize);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       ro.disconnect();
       socket?.removeEventListener("message", onMessage);
       try {
