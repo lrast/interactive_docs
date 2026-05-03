@@ -41,7 +41,7 @@ def create_app() -> Flask:
 
     # E2B settings (used when TERMINAL_PROVIDER=e2b)
     app.config["E2B_TEMPLATE_NAME"] = (os.environ.get("E2B_TEMPLATE_NAME") or "interactive-docs-ipython").strip()
-    app.config["E2B_ALLOW_INTERNET_ACCESS"] = _env_bool("E2B_ALLOW_INTERNET_ACCESS", False)
+    app.config["E2B_ALLOW_INTERNET_ACCESS"] = _env_bool("E2B_ALLOW_INTERNET_ACCESS", True)
 
     # Security defaults: token required by default for e2b, optional for local.
     require_token_default = terminal_provider in ("e2b", "e2b-sandbox")
@@ -57,6 +57,17 @@ def create_app() -> Flask:
     app.config["TERMINAL_MAX_SESSION_SECONDS"] = _env_int("TERMINAL_MAX_SESSION_SECONDS", 3600)
     app.config["TERMINAL_IDLE_TIMEOUT_SECONDS"] = _env_int("TERMINAL_IDLE_TIMEOUT_SECONDS", 300)
     app.config["TERMINAL_MAX_INBOUND_BYTES"] = _env_int("TERMINAL_MAX_INBOUND_BYTES", 65536)
+
+    # Session-scoped E2B package install settings
+    app.config["TERMINAL_MAX_PIP_REQUIREMENTS_LINES"] = _env_int(
+        "TERMINAL_MAX_PIP_REQUIREMENTS_LINES", 50
+    )
+    app.config["TERMINAL_MAX_PIP_REQUIREMENT_LINE_CHARS"] = _env_int(
+        "TERMINAL_MAX_PIP_REQUIREMENT_LINE_CHARS", 200
+    )
+    app.config["TERMINAL_PIP_INSTALL_TIMEOUT_SECONDS"] = _env_int(
+        "TERMINAL_PIP_INSTALL_TIMEOUT_SECONDS", 600
+    )
 
     Session(app)
 

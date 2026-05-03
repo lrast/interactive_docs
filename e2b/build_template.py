@@ -14,4 +14,3 @@ if __name__ == "__main__":
         memory_mb=2048,
         on_build_logs=default_build_logger(),
     )
-

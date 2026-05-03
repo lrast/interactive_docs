@@ -1,4 +1,4 @@
-# interactive documentation
+# Interactive Documentation
 
 Quick app, providing access to documentation, a text editor, and terminal in one place, with an AI agent to tie them together.
 
@@ -102,6 +102,15 @@ python e2b/build_template.py
 - Then run the app with:
   - **`E2B_TEMPLATE_NAME=interactive-docs-ipython`**
   - **`E2B_ALLOW_INTERNET_ACCESS=0`** (default)
+
+### Install packages during a live E2B session
+
+When `TERMINAL_PROVIDER=e2b` and **`E2B_ALLOW_INTERNET_ACCESS=1`**, you can install additional pip packages into the
+current browser session's sandbox (after opening the terminal) via:
+
+- **`POST /api/terminal/pip-install`** — JSON body: `{ "requirements": ["cowsay"] }`
+
+The response is blocking JSON: `{ "exit_code", "stdout", "stderr" }`.
 
 ### WebSocket security (recommended for deploy)
 

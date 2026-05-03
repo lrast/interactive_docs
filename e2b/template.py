@@ -5,4 +5,3 @@ template = (
     .from_template("code-interpreter-v1")
     .pip_install(["ipython"])
 )
-
