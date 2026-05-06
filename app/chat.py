@@ -6,9 +6,14 @@ import uuid
 
 from typing import Any
 
-from flask import Blueprint, Response, jsonify, request, stream_with_context, session
+from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context, session
 
 from app.ai_calls import call_ai
+from app.terminal_pip import (
+    _SESSION_PIP_REQUIREMENTS_KEY,
+    merge_pip_requirements,
+    pip_install_requirements_into_session_sandbox,
+)
 
 bp = Blueprint("chat", __name__, url_prefix="/api")
 
@@ -55,6 +60,36 @@ def chat_stream():
     response = reply.response
     editor_content = reply.editor_content
     documentation_url = reply.documentation_url
+
+    # placeholder for pip requirements
+    pip_requirements = ['pytorch']
+
+    print('session', session.keys())
+    print('sandbox_id', session.get("e2b_terminal_sandbox_id", ''))
+    if True:
+        print('installing')
+        # Debug-only: install into the current browser session's E2B sandbox.
+        sandbox_id = session.get("e2b_terminal_sandbox_id") or ""
+        print('sandbox_id', sandbox_id)
+        if isinstance(sandbox_id, str) and sandbox_id.strip():
+            if isinstance(pip_requirements, str):
+                req_lines = [ln.strip() for ln in pip_requirements.splitlines()]
+            else:
+                req_lines = list(pip_requirements or [])
+
+            result, err2, status = pip_install_requirements_into_session_sandbox(
+                sandbox_id=str(sandbox_id),
+                requirements=req_lines,
+            )
+            print('result')
+            if err2 is not None:
+                raise RuntimeError(f"pip install failed ({status}): {err2}")
+            assert result is not None
+            normalized = result.get("normalized_requirements", None)
+            if isinstance(normalized, list) and all(isinstance(x, str) for x in normalized):
+                session[_SESSION_PIP_REQUIREMENTS_KEY] = merge_pip_requirements(
+                    session.get(_SESSION_PIP_REQUIREMENTS_KEY), normalized
+                )
 
     def generate():
         message_id = str(uuid.uuid4())

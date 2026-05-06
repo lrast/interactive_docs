@@ -17,12 +17,26 @@ import time
 
 from typing import Any, Callable
 
-from flask import current_app, session
+from flask import Response, current_app, session
 
 if sys.platform != "win32":
     import fcntl
     import pty
     import termios
+
+def _force_save_session(*, hypothesis_id: str, location: str) -> None:
+    """Persist session changes from WebSocket handlers.
+
+    WebSocket routes don't always trigger Flask's normal response lifecycle,
+    so Flask-Session may not write modified session data automatically.
+    """
+    try:
+        app = current_app._get_current_object()
+        resp = Response("")
+        app.session_interface.save_session(app, session, resp)  # type: ignore[attr-defined]
+    except Exception as e:
+        # Fail-fast: if we can't persist the session, downstream requests won't see the sandbox.
+        raise RuntimeError(f"Failed to persist session from WebSocket: {e}") from e
 
 
 def _set_winsize(master_fd: int, rows: int, cols: int) -> None:
@@ -253,6 +267,12 @@ def handle_terminal_ws_e2b(ws) -> None:
 
         try:
             session["e2b_terminal_sandbox_id"] = sandbox.sandbox_id
+            _force_save_session(
+                hypothesis_id="D",
+                location="app/terminal_session.py:handle_terminal_ws_e2b",
+            )
+            print('handle_terminal_ws_e2b', sandbox.sandbox_id)
+            print('handle_terminal_ws_e2b session', session.get("e2b_terminal_sandbox_id", ''))
         except Exception:
             pass
 
