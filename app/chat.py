@@ -63,16 +63,15 @@ def chat_stream():
     documentation_url = reply.documentation_url
 
     # placeholder for pip requirements
-    pip_requirements = ['pytorch']
+    pip_requirements = ['cowsay']
+    # note: struggles with torch due to space requirements from cuda packages
+    # should probably be handled by the AI agent.
 
-    print('session', session.keys())
     browser_id = str(session.get("browser_id") or "").strip()
     sandbox_id_for_session = (
         TerminalManager.get_active_sandbox_id(browser_id=browser_id) if browser_id else None
     )
-    print('sandbox_id', sandbox_id_for_session or '')
     if True:
-        print('installing')
         # Debug-only: install into the current browser session's E2B sandbox.
         sandbox_id = sandbox_id_for_session or ""
         print('sandbox_id', sandbox_id)

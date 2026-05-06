@@ -121,12 +121,29 @@ def pip_install_requirements_into_session_sandbox(
         timeout_seconds = int(current_app.config["TERMINAL_PIP_INSTALL_TIMEOUT_SECONDS"])
 
     try:
+        #result = sandbox.commands.run("pip install cowsay")
+        #result = sandbox.commands.run("pip install torch --no-cache-dir")
+
         result = sandbox.commands.run(
-            f"python -m pip install --no-input --disable-pip-version-check -r {req_path}",
+            f"pip install -r {req_path} --no-cache-dir",
             timeout=int(timeout_seconds),
         )
-    except Exception:
-        return None, "pip install failed (exception).", 500
+    except Exception as e:
+        exit_code = getattr(e, "exit_code", None)
+        stdout = str(getattr(e, "stdout", "") or "")
+        stderr = str(getattr(e, "stderr", "") or "")
+        stdout_tail = (stdout[-2000:] if len(stdout) > 2000 else stdout).strip()
+        stderr_tail = (stderr[-2000:] if len(stderr) > 2000 else stderr).strip()
+
+        pieces: list[str] = [f"{type(e).__name__}"]
+        if isinstance(exit_code, int):
+            pieces.append(f"exit_code={exit_code}")
+        if stderr_tail:
+            pieces.append(f"stderr_tail={stderr_tail}")
+        elif stdout_tail:
+            pieces.append(f"stdout_tail={stdout_tail}")
+
+        return None, "pip install failed (" + ", ".join(pieces) + ")", 500
 
     return (
         {
