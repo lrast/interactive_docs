@@ -78,12 +78,12 @@ def create_app() -> Flask:
         session.permanent = True
         session.setdefault("browser_id", str(uuid.uuid4()))
 
-    from . import chat, routes, terminal_http, terminal_ws
+    from . import chat, routes, terminal_routes
 
     app.register_blueprint(routes.bp)
     app.register_blueprint(chat.bp)
-    app.register_blueprint(terminal_http.bp)
-    terminal_ws.register_terminal_ws(app)
+    app.register_blueprint(terminal_routes.bp)
+    terminal_routes.register_terminal_ws(app)
 
     return app
 

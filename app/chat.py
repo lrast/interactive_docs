@@ -9,6 +9,7 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context, session
 
 from app.ai_calls import call_ai
+from app.terminal_manager import TerminalManager
 from app.terminal_pip import (
     _SESSION_PIP_REQUIREMENTS_KEY,
     merge_pip_requirements,
@@ -65,11 +66,15 @@ def chat_stream():
     pip_requirements = ['pytorch']
 
     print('session', session.keys())
-    print('sandbox_id', session.get("e2b_terminal_sandbox_id", ''))
+    browser_id = str(session.get("browser_id") or "").strip()
+    sandbox_id_for_session = (
+        TerminalManager.get_active_sandbox_id(browser_id=browser_id) if browser_id else None
+    )
+    print('sandbox_id', sandbox_id_for_session or '')
     if True:
         print('installing')
         # Debug-only: install into the current browser session's E2B sandbox.
-        sandbox_id = session.get("e2b_terminal_sandbox_id") or ""
+        sandbox_id = sandbox_id_for_session or ""
         print('sandbox_id', sandbox_id)
         if isinstance(sandbox_id, str) and sandbox_id.strip():
             if isinstance(pip_requirements, str):

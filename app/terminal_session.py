@@ -17,26 +17,14 @@ import time
 
 from typing import Any, Callable
 
-from flask import Response, current_app, session
+from flask import current_app
 
 if sys.platform != "win32":
     import fcntl
     import pty
     import termios
 
-def _force_save_session(*, hypothesis_id: str, location: str) -> None:
-    """Persist session changes from WebSocket handlers.
-
-    WebSocket routes don't always trigger Flask's normal response lifecycle,
-    so Flask-Session may not write modified session data automatically.
-    """
-    try:
-        app = current_app._get_current_object()
-        resp = Response("")
-        app.session_interface.save_session(app, session, resp)  # type: ignore[attr-defined]
-    except Exception as e:
-        # Fail-fast: if we can't persist the session, downstream requests won't see the sandbox.
-        raise RuntimeError(f"Failed to persist session from WebSocket: {e}") from e
+from .terminal_manager import TerminalRegistry, TerminalState
 
 
 def _set_winsize(master_fd: int, rows: int, cols: int) -> None:
@@ -194,11 +182,17 @@ def handle_terminal_ws(ws) -> None:
         watchdog_thread.join(timeout=2.0)
 
 
-def handle_terminal_ws_e2b(ws) -> None:
+def handle_terminal_ws_e2b(ws, *, browser_id: str) -> None:
     """E2B sandbox-backed terminal session over WebSocket.
 
     Uses E2B's PTY API (interactive bash) and proxies bytes to/from the browser.
     """
+    if not isinstance(browser_id, str) or not browser_id.strip():
+        try:
+            ws.send("\r\n\x1b[31mMissing browser session id.\x1b[0m\r\n")
+        except Exception:
+            pass
+        return
 
     try:
         from e2b import PtySize, Sandbox  # type: ignore
@@ -265,22 +259,21 @@ def handle_terminal_ws_e2b(ws) -> None:
                 allow_internet_access=allow_internet,
             )
 
-        try:
-            session["e2b_terminal_sandbox_id"] = sandbox.sandbox_id
-            _force_save_session(
-                hypothesis_id="D",
-                location="app/terminal_session.py:handle_terminal_ws_e2b",
-            )
-            print('handle_terminal_ws_e2b', sandbox.sandbox_id)
-            print('handle_terminal_ws_e2b session', session.get("e2b_terminal_sandbox_id", ''))
-        except Exception:
-            pass
-
         terminal = sandbox.pty.create(
             PtySize(rows=24, cols=80),
             timeout=0,  # keep alive; we enforce our own caps above
         )
         terminal_pid = int(getattr(terminal, "pid", 0) or 0) or None
+        TerminalRegistry.set_active(
+            browser_id=browser_id,
+            state=TerminalState(
+                provider="e2b",
+                sandbox_id=getattr(sandbox, "sandbox_id", None),
+                terminal_pid=terminal_pid,
+                connected_at_ms=int(time.time() * 1000),
+                last_io_at_ms=int(time.time() * 1000),
+            ),
+        )
 
         def reader() -> None:
             if terminal is None:
@@ -329,6 +322,7 @@ def handle_terminal_ws_e2b(ws) -> None:
                 text = msg
 
             last_io_at = time.monotonic()
+            TerminalRegistry.touch(browser_id=browser_id)
 
             is_resize, rows, cols = _maybe_resize_json(text)
             if is_resize and rows is not None and cols is not None and terminal_pid is not None:
@@ -343,6 +337,7 @@ def handle_terminal_ws_e2b(ws) -> None:
 
             try:
                 sandbox.pty.send_stdin(terminal_pid, text.encode("utf-8"))
+                TerminalRegistry.touch(browser_id=browser_id)
             except Exception:
                 break
     finally:
@@ -361,11 +356,7 @@ def handle_terminal_ws_e2b(ws) -> None:
                     sandbox.pty.kill(terminal_pid)
                 except Exception:
                     pass
-            try:
-                if session.get("e2b_terminal_sandbox_id") == getattr(sandbox, "sandbox_id", None):
-                    session.pop("e2b_terminal_sandbox_id", None)
-            except Exception:
-                pass
+            TerminalRegistry.clear_active(browser_id=browser_id)
             if sandbox is not None:
                 # Close/free sandbox resources if supported by SDK version.
                 close_fn: Callable[[], Any] | None = getattr(sandbox, "close", None)

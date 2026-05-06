@@ -66,7 +66,7 @@ Open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
 - The lower right sidebar runs a real **`ipython`** session in the browser (**xterm.js** + **`/ws/terminal`** WebSocket + PTY). Requires **`ipython`** from `requirements.txt` (installed with the venv).
 - **Unix only** (macOS / Linux). On Windows the WebSocket responds with an unsupported message instead of spawning a PTY.
 - **Security:** this is **arbitrary code execution** as your Flask OS user. Treat it as **localhost-only, single-user tooling**. Do not expose it on the public internet without strong isolation, auth, and hardening.
-- Implementation: [`app/terminal_session.py`](app/terminal_session.py), [`app/terminal_ws.py`](app/terminal_ws.py).
+- Implementation: [`app/terminal_session.py`](app/terminal_session.py), [`app/terminal_routes.py`](app/terminal_routes.py).
 
 ## Terminal providers (local vs E2B)
 
@@ -105,18 +105,18 @@ python e2b/build_template.py
 
 ### Install packages during a live E2B session
 
-When `TERMINAL_PROVIDER=e2b` and **`E2B_ALLOW_INTERNET_ACCESS=1`**, you can install additional pip packages into the
-current browser session's sandbox (after opening the terminal) via:
+When `TERMINAL_PROVIDER=e2b` and **`E2B_ALLOW_INTERNET_ACCESS=1`**, server code can install pip packages into the
+current browser session's sandbox using **`app.terminal_pip.pip_install_requirements_into_session_sandbox`**
+(requirements as a list of strings; returns `exit_code`, `stdout`, `stderr`, and `normalized_requirements` on success).
 
-- **`POST /api/terminal/pip-install`** — JSON body: `{ "requirements": ["cowsay"] }`
-
-The response is blocking JSON: `{ "exit_code", "stdout", "stderr" }`.
+There is no public HTTP endpoint for ad-hoc pip installs; wire installs through your chat or other backend flow.
 
 ### WebSocket security (recommended for deploy)
 
 When token/origin enforcement is enabled (defaults are secure for `e2b`):
 
 - The frontend calls **`POST /api/terminal/token`** to mint a short-lived one-time token.
+- The frontend calls **`POST /api/terminal/kill`** on page hide / background to best-effort stop the session E2B sandbox.
 - The terminal WebSocket must connect to **`/ws/terminal?token=...`**.
 - The server rejects mismatched `Origin` and invalid/expired tokens.
 
@@ -148,7 +148,7 @@ Config env vars:
 - `app/__init__.py` — application factory `create_app()`
 - `app/routes.py` — routes (blueprint `main`)
 - `app/chat.py` — `POST /api/chat` streaming stub (blueprint `chat`, prefix `/api`)
-- `app/terminal_ws.py` — WebSocket **`/ws/terminal`** (flask-sock) for the sidebar IPython PTY
+- `app/terminal_routes.py` — HTTP routes + WebSocket **`/ws/terminal`** (flask-sock) for the sidebar IPython PTY
 - `app/templates/` — Jinja; React mounts at `#main-chat-root` in **`page__chat-bar`** (bottom of the left column only)
 - `app/static/` — CSS and Vite output under `app/static/dist/`
 - `frontend/` — Vite + React source, `npm run build` → `app/static/dist/`
