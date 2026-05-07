@@ -1,7 +1,12 @@
 import { parseNdjsonObjectStream } from "./ndjsonChatStream.js";
 import { getEditorContent } from "./state/editorContentStore.js";
 import { setEditorContent } from "./state/editorContentStore.js";
-import { setMainDocIframeSrc } from "./state/mainDocIframeStore.js";
+import {
+  renderMainDocIframeFallback,
+  setMainDocIframeFallbackHtml,
+  setMainDocIframeSrc,
+  setMainDocIframeUseFallback,
+} from "./state/mainDocIframeStore.js";
 
 function applyUiStateFromChunk(chunk) {
   if (!chunk || typeof chunk !== "object") return;
@@ -11,7 +16,9 @@ function applyUiStateFromChunk(chunk) {
     chunk.type !== "ui-state" &&
     chunk.type !== "finish" &&
     typeof chunk.editorContent !== "string" &&
-    typeof chunk.displayedUrl !== "string"
+    typeof chunk.displayedUrl !== "string" &&
+    typeof chunk.useFallback !== "boolean" &&
+    typeof chunk.fallbackHtml !== "string"
   ) {
     return;
   }
@@ -20,7 +27,20 @@ function applyUiStateFromChunk(chunk) {
     setEditorContent(chunk.editorContent);
   }
 
-  if (typeof chunk.displayedUrl === "string") {
+  if (typeof chunk.fallbackHtml === "string") {
+    setMainDocIframeFallbackHtml(chunk.fallbackHtml);
+  }
+
+  if (typeof chunk.useFallback === "boolean") {
+    setMainDocIframeUseFallback(chunk.useFallback);
+  }
+
+  // Deterministic render decision: backend decides embeddability.
+  if (chunk.useFallback === true) {
+    renderMainDocIframeFallback(
+      typeof chunk.fallbackHtml === "string" ? chunk.fallbackHtml : undefined,
+    );
+  } else if (chunk.useFallback === false && typeof chunk.displayedUrl === "string") {
     setMainDocIframeSrc(chunk.displayedUrl);
   }
 }

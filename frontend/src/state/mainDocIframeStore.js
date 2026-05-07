@@ -1,5 +1,13 @@
 const IFRAME_ID = "main-doc-iframe";
 
+let useFallback = null;
+let fallbackHtml = "";
+const listeners = new Set();
+
+function emit() {
+  for (const l of listeners) l();
+}
+
 function isAllowedIframeSrc(src) {
   if (typeof src !== "string") return false;
   const trimmed = src.trim();
@@ -16,10 +24,47 @@ function getIframeEl() {
   return document.getElementById(IFRAME_ID);
 }
 
+export function getMainDocIframeUseFallback() {
+  return useFallback;
+}
+
+export function subscribeMainDocIframe(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function setMainDocIframeUseFallback(next) {
+  if (typeof next !== "boolean") return false;
+  if (next === useFallback) return true;
+  useFallback = next;
+  emit();
+  return true;
+}
+
+export function setMainDocIframeFallbackHtml(next) {
+  const value = typeof next === "string" ? next : "";
+  if (value === fallbackHtml) return true;
+  fallbackHtml = value;
+  emit();
+  return true;
+}
+
+export function renderMainDocIframeFallback(html) {
+  const iframe = getIframeEl();
+  if (!iframe) return false;
+  const content = typeof html === "string" ? html : fallbackHtml;
+  if (!content) return false;
+
+  iframe.removeAttribute("src");
+  iframe.setAttribute("srcdoc", content);
+  return true;
+}
+
 export function setMainDocIframeSrc(src) {
   const iframe = getIframeEl();
   if (!iframe) return false;
   if (!isAllowedIframeSrc(src)) return false;
+  iframe.removeAttribute("srcdoc");
   iframe.setAttribute("src", src);
   return true;
 }
