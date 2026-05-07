@@ -17,6 +17,7 @@ class AiReply(BaseModel):
     response: str
     editor_content: str = ""
     documentation_url: str = ""
+    pip_requirements: list = []
 
 
 agent = Agent('openai:gpt-5.2', instructions=system_prompt,
