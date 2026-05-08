@@ -27,34 +27,6 @@ if sys.platform != "win32":
 from .terminal_manager import TerminalRegistry, TerminalState
 
 
-def _set_winsize(master_fd: int, rows: int, cols: int) -> None:
-    if sys.platform == "win32":
-        return
-    winsize = struct.pack("HHHH", rows, cols, 0, 0)
-    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
-
-
-def _maybe_resize_json(text: str) -> tuple[bool, int | None, int | None]:
-    """If text is a resize control message, return (True, rows, cols)."""
-    stripped = text.strip()
-    if not stripped.startswith("{"):
-        return False, None, None
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError:
-        return False, None, None
-    if not isinstance(payload, dict) or payload.get("type") != "resize":
-        return False, None, None
-    try:
-        rows = int(payload["rows"])
-        cols = int(payload["cols"])
-    except (KeyError, TypeError, ValueError):
-        return False, None, None
-    if rows <= 0 or cols <= 0:
-        return False, None, None
-    return True, rows, cols
-
-
 def handle_terminal_ws(ws) -> None:
     if sys.platform == "win32":
         try:
@@ -365,3 +337,32 @@ def handle_terminal_ws_e2b(ws, *, browser_id: str) -> None:
                         close_fn()
                     except Exception:
                         pass
+
+
+# Helpers: terminal size
+def _set_winsize(master_fd: int, rows: int, cols: int) -> None:
+    if sys.platform == "win32":
+        return
+    winsize = struct.pack("HHHH", rows, cols, 0, 0)
+    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
+
+
+def _maybe_resize_json(text: str) -> tuple[bool, int | None, int | None]:
+    """If text is a resize control message, return (True, rows, cols)."""
+    stripped = text.strip()
+    if not stripped.startswith("{"):
+        return False, None, None
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        return False, None, None
+    if not isinstance(payload, dict) or payload.get("type") != "resize":
+        return False, None, None
+    try:
+        rows = int(payload["rows"])
+        cols = int(payload["cols"])
+    except (KeyError, TypeError, ValueError):
+        return False, None, None
+    if rows <= 0 or cols <= 0:
+        return False, None, None
+    return True, rows, cols

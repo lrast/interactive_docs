@@ -58,4 +58,3 @@ def register_terminal_ws(app) -> Sock:
         TerminalManager.handle_ws(ws)
 
     return sock
-

@@ -31,87 +31,10 @@ except Exception as e:
     raise RuntimeError(f"Missing fallback HTML template at {_FALLBACK_HTML_PATH}") from e
 
 
-def _parse_csp_frame_ancestors(csp_header: str) -> list[str] | None:
-    if not csp_header:
-        return None
-    directives = [d.strip() for d in csp_header.split(";") if d.strip()]
-    for d in directives:
-        if d.lower().startswith("frame-ancestors"):
-            parts = d.split()
-            return [p.strip() for p in parts[1:]]
-    return None
-
-
-def _is_embeddable_url(url: str) -> bool:
-    if not isinstance(url, str) or not url.strip():
-        return False
-    url = url.strip()
-
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return False
-
-    req = Request(
-        url,
-        method="HEAD",
-        headers={
-            "User-Agent": "interactive-docs/1.0 (+iframe-embeddability-preflight)",
-            "Accept": "*/*",
-        },
-    )
-
-    try:
-        with urlopen(req, timeout=2.0) as resp:
-            headers = resp.headers
-    except HTTPError:
-        return False
-    except URLError:
-        return False
-    except Exception:
-        return False
-
-    xfo = (headers.get("X-Frame-Options") or "").strip().lower()
-    if xfo:
-        if "deny" in xfo:
-            return False
-        if "sameorigin" in xfo:
-            return False
-
-    csp = headers.get("Content-Security-Policy") or headers.get(
-        "Content-Security-Policy-Report-Only"
-    )
-    frame_ancestors = _parse_csp_frame_ancestors(csp or "")
-    if frame_ancestors is not None:
-        toks = [t.strip() for t in frame_ancestors if t.strip()]
-        lower = [t.lower() for t in toks]
-
-        if "'none'" in lower:
-            return False
-        if "*" in toks:
-            return True
-
-        return False
-
-    return True
-
 @bp.get("/session")
 def browser_session():
     """Stable per-browser id (signed cookie session). Used for server-side scoping."""
     return jsonify({"browserSessionId": session.get("browser_id")})
-
-
-def _text_from_parts(parts: list[Any] | None) -> str:
-    if not parts:
-        return ""
-    out: list[str] = []
-    for p in parts:
-        if isinstance(p, dict) and p.get("type") == "text":
-            out.append(str(p.get("text", "")))
-    return "".join(out).strip()
-
-
-def _ndjson_line(obj: dict) -> str:
-    return json.dumps(obj, separators=(",", ":")) + "\n"
 
 
 @bp.post("/chat")
@@ -138,6 +61,7 @@ def chat_stream():
     documentation_url = reply.documentation_url
     pip_requirements = reply.pip_requirements
 
+    # install pip requirements into the sandbox if running in e2b
     # note: struggles with torch due to space requirements from cuda packages
     # this should probably be handled by the AI agent.
 
@@ -146,7 +70,7 @@ def chat_stream():
         TerminalManager.get_active_sandbox_id(browser_id=browser_id) if browser_id else None
     )
     terminal_provider = str(current_app.config["TERMINAL_PROVIDER"]).strip().lower()
-    # install pip requirements into the sandbox if running in e2b
+
     if terminal_provider in ("e2b", "e2b-sandbox"):
         sandbox_id = sandbox_id_for_session or ""
         print('sandbox_id', sandbox_id)
@@ -221,3 +145,85 @@ def chat_stream():
         stream_with_context(generate()),
         mimetype="application/x-ndjson; charset=utf-8",
     )
+
+
+# Helpers: streaming text
+
+def _text_from_parts(parts: list[Any] | None) -> str:
+    if not parts:
+        return ""
+    out: list[str] = []
+    for p in parts:
+        if isinstance(p, dict) and p.get("type") == "text":
+            out.append(str(p.get("text", "")))
+    return "".join(out).strip()
+
+
+def _ndjson_line(obj: dict) -> str:
+    return json.dumps(obj, separators=(",", ":")) + "\n"
+
+
+# Helpers: checking whether the link can be shown in an iframe
+
+def _parse_csp_frame_ancestors(csp_header: str) -> list[str] | None:
+    if not csp_header:
+        return None
+    directives = [d.strip() for d in csp_header.split(";") if d.strip()]
+    for d in directives:
+        if d.lower().startswith("frame-ancestors"):
+            parts = d.split()
+            return [p.strip() for p in parts[1:]]
+    return None
+
+
+def _is_embeddable_url(url: str) -> bool:
+    if not isinstance(url, str) or not url.strip():
+        return False
+    url = url.strip()
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    req = Request(
+        url,
+        method="HEAD",
+        headers={
+            "User-Agent": "interactive-docs/1.0 (+iframe-embeddability-preflight)",
+            "Accept": "*/*",
+        },
+    )
+
+    try:
+        with urlopen(req, timeout=2.0) as resp:
+            headers = resp.headers
+    except HTTPError:
+        return False
+    except URLError:
+        return False
+    except Exception:
+        return False
+
+    xfo = (headers.get("X-Frame-Options") or "").strip().lower()
+    if xfo:
+        if "deny" in xfo:
+            return False
+        if "sameorigin" in xfo:
+            return False
+
+    csp = headers.get("Content-Security-Policy") or headers.get(
+        "Content-Security-Policy-Report-Only"
+    )
+    frame_ancestors = _parse_csp_frame_ancestors(csp or "")
+    if frame_ancestors is not None:
+        toks = [t.strip() for t in frame_ancestors if t.strip()]
+        lower = [t.lower() for t in toks]
+
+        if "'none'" in lower:
+            return False
+        if "*" in toks:
+            return True
+
+        return False
+
+    return True

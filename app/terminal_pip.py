@@ -8,56 +8,6 @@ _SESSION_PIP_REQUIREMENTS_KEY = "terminal_pip_requirements"
 _REQ_LINE_ALLOWED_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-\[\],=<>!~+* ]*$")
 
 
-def _normalize_pip_requirements(reqs: object) -> tuple[list[str] | None, str | None]:
-    """Validate + normalize requirement lines for session-scoped pip installs.
-
-    Intentionally conservative: accept simple package specs and version pins,
-    but reject pip options, URLs/VCS installs, and multi-line / control chars.
-    """
-    max_lines = int(current_app.config["TERMINAL_MAX_PIP_REQUIREMENTS_LINES"])
-    max_chars = int(current_app.config["TERMINAL_MAX_PIP_REQUIREMENT_LINE_CHARS"])
-    if reqs is None:
-        return None, 'Missing "requirements".'
-    if not isinstance(reqs, list):
-        return None, '"requirements" must be a list of strings.'
-    if max_lines > 0 and len(reqs) > max_lines:
-        return None, f"Too many requirements (max {max_lines})."
-
-    out: list[str] = []
-    seen: set[str] = set()
-    for raw in reqs:
-        if not isinstance(raw, str):
-            return None, "Each requirement must be a string."
-        line = raw.strip()
-        if not line:
-            continue
-        if max_chars > 0 and len(line) > max_chars:
-            return None, f"Requirement too long (max {max_chars} chars)."
-
-        if any(ord(ch) < 32 for ch in line) or "\n" in line or "\r" in line:
-            return None, "Invalid requirement (control characters)."
-
-        lowered = line.lower()
-        if line.startswith("-") or lowered.startswith("--"):
-            return None, "Invalid requirement (pip options are not allowed)."
-        if " -r " in f" {lowered} ":
-            return None, "Invalid requirement (recursive requirements not allowed)."
-        if "://" in line or lowered.startswith(("git+", "hg+", "svn+", "bzr+")):
-            return None, "Invalid requirement (URLs/VCS installs are not allowed)."
-
-        if not _REQ_LINE_ALLOWED_RE.match(line):
-            return None, "Invalid requirement (unsupported characters)."
-
-        key = line.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(line)
-
-    out.sort(key=str.lower)
-    return out, None
-
-
 def merge_pip_requirements(existing: object, new: list[str]) -> list[str]:
     if not isinstance(existing, list):
         existing_list: list[str] = []
@@ -155,3 +105,53 @@ def pip_install_requirements_into_session_sandbox(
         None,
         200,
     )
+
+
+def _normalize_pip_requirements(reqs: object) -> tuple[list[str] | None, str | None]:
+    """Validate + normalize requirement lines for session-scoped pip installs.
+
+    Intentionally conservative: accept simple package specs and version pins,
+    but reject pip options, URLs/VCS installs, and multi-line / control chars.
+    """
+    max_lines = int(current_app.config["TERMINAL_MAX_PIP_REQUIREMENTS_LINES"])
+    max_chars = int(current_app.config["TERMINAL_MAX_PIP_REQUIREMENT_LINE_CHARS"])
+    if reqs is None:
+        return None, 'Missing "requirements".'
+    if not isinstance(reqs, list):
+        return None, '"requirements" must be a list of strings.'
+    if max_lines > 0 and len(reqs) > max_lines:
+        return None, f"Too many requirements (max {max_lines})."
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in reqs:
+        if not isinstance(raw, str):
+            return None, "Each requirement must be a string."
+        line = raw.strip()
+        if not line:
+            continue
+        if max_chars > 0 and len(line) > max_chars:
+            return None, f"Requirement too long (max {max_chars} chars)."
+
+        if any(ord(ch) < 32 for ch in line) or "\n" in line or "\r" in line:
+            return None, "Invalid requirement (control characters)."
+
+        lowered = line.lower()
+        if line.startswith("-") or lowered.startswith("--"):
+            return None, "Invalid requirement (pip options are not allowed)."
+        if " -r " in f" {lowered} ":
+            return None, "Invalid requirement (recursive requirements not allowed)."
+        if "://" in line or lowered.startswith(("git+", "hg+", "svn+", "bzr+")):
+            return None, "Invalid requirement (URLs/VCS installs are not allowed)."
+
+        if not _REQ_LINE_ALLOWED_RE.match(line):
+            return None, "Invalid requirement (unsupported characters)."
+
+        key = line.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(line)
+
+    out.sort(key=str.lower)
+    return out, None
