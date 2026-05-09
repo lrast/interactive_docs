@@ -61,6 +61,8 @@ def chat_stream():
     documentation_url = reply.documentation_url
     pip_requirements = reply.pip_requirements
 
+    print(documentation_url)
+
     # install pip requirements into the sandbox if running in e2b
     # note: struggles with torch due to space requirements from cuda packages
     # this should probably be handled by the AI agent.

@@ -1,10 +1,10 @@
-import os
-
+import requests
 from pydantic_ai import Agent
 
 from pathlib import Path
 from pydantic import BaseModel
 from pydantic_ai.messages import ModelMessagesTypeAdapter
+from flask import current_app
 
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -25,6 +25,18 @@ agent = Agent('openai:gpt-5.2', instructions=system_prompt,
               )
 
 
+@agent.tool_plain
+def verify_url(url: str) -> str:
+    """ Verifies if a documentation URL is live."""
+    print('verify called', url)
+    result = requests.get(url)
+
+    if result.status_code == 200:
+        return 'The URL is live'
+    else:
+        return 'The URL does not appear to be live'
+
+
 def call_ai(user_input: dict, session: dict) -> AiReply:
     """ Handler for AI agent calls"""
     user_prompt = user_prompt_template.format(**user_input)
@@ -33,7 +45,7 @@ def call_ai(user_input: dict, session: dict) -> AiReply:
     result = agent.run_sync(user_prompt, message_history=message_history)
 
     try:
-        max_messages = int(os.environ.get("MAX_HISTORY_MESSAGES", "80"))
+        max_messages = int(current_app.config.get("MAX_HISTORY_MESSAGES", 80))
     except Exception:
         max_messages = 80
 
