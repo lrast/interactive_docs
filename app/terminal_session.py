@@ -219,7 +219,7 @@ def handle_terminal_ws_e2b(ws, *, browser_id: str) -> None:
     watchdog_thread = threading.Thread(target=watchdog, name="e2b-tty-watchdog", daemon=True)
 
     try:
-        template_name = str(current_app.config["E2B_TEMPLATE_NAME"] or "").strip()
+        template_name = str(current_app.config["E2B_TEMPLATE_NAME"]).strip()
         allow_internet = bool(current_app.config["E2B_ALLOW_INTERNET_ACCESS"])
         if template_name:
             sandbox = Sandbox.create(

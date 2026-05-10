@@ -13,7 +13,7 @@ export function ChatInput() {
     <ChatComposer variant="compact">
       <ChatComposerTextArea
         maxRows={5}
-        placeholder={localeText.composerInputPlaceholder}
+        placeholder="Ask about a package"
       />
       <ChatComposerSendButton aria-label={localeText.composerSendButtonLabel}>
         <SendIcon fontSize="small" />
