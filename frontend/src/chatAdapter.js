@@ -2,10 +2,10 @@ import { parseNdjsonObjectStream } from "./ndjsonChatStream.js";
 import { getEditorContent } from "./state/editorContentStore.js";
 import { setEditorContent } from "./state/editorContentStore.js";
 import {
+  applyMainDocIframeResponseUiState,
   renderMainDocIframeFallback,
   setMainDocIframeFallbackHtml,
   setMainDocIframeSrc,
-  setMainDocIframeUseFallback,
 } from "./state/mainDocIframeStore.js";
 
 function applyUiStateFromChunk(chunk) {
@@ -31,8 +31,11 @@ function applyUiStateFromChunk(chunk) {
     setMainDocIframeFallbackHtml(chunk.fallbackHtml);
   }
 
-  if (typeof chunk.useFallback === "boolean") {
-    setMainDocIframeUseFallback(chunk.useFallback);
+  if (typeof chunk.displayedUrl === "string" || typeof chunk.useFallback === "boolean") {
+    applyMainDocIframeResponseUiState({
+      displayedUrl: typeof chunk.displayedUrl === "string" ? chunk.displayedUrl : undefined,
+      useFallback: typeof chunk.useFallback === "boolean" ? chunk.useFallback : undefined,
+    });
   }
 
   // Deterministic render decision: backend decides embeddability.

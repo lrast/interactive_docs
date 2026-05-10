@@ -1,6 +1,7 @@
 const IFRAME_ID = "main-doc-iframe";
 
 let useFallback = null;
+let documentationUrl = "";
 let fallbackHtml = "";
 const listeners = new Set();
 
@@ -28,6 +29,10 @@ export function getMainDocIframeUseFallback() {
   return useFallback;
 }
 
+export function getMainDocIframeDocumentationUrl() {
+  return documentationUrl;
+}
+
 export function subscribeMainDocIframe(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -38,6 +43,25 @@ export function setMainDocIframeUseFallback(next) {
   if (next === useFallback) return true;
   useFallback = next;
   emit();
+  return true;
+}
+
+/** Applies streamed UI fields in one notify so the status line never reads a mismatched pair. */
+export function applyMainDocIframeResponseUiState(patch = {}) {
+  const { displayedUrl, useFallback: nextUseFallback } = patch;
+  let changed = false;
+  if (typeof displayedUrl === "string") {
+    const v = displayedUrl.trim();
+    if (v !== documentationUrl) {
+      documentationUrl = v;
+      changed = true;
+    }
+  }
+  if (typeof nextUseFallback === "boolean" && nextUseFallback !== useFallback) {
+    useFallback = nextUseFallback;
+    changed = true;
+  }
+  if (changed) emit();
   return true;
 }
 
