@@ -6,3 +6,6 @@ pydantic==2.13.3
 pydantic-ai==1.87.0
 e2b==2.20.0
 python-dotenv==1.1.1
+firecrawl-py
+markdown>=3.7,<4
+bleach>=6.2.0,<7

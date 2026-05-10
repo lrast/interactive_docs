@@ -27,6 +27,8 @@ pip install -r requirements.txt
 
 On Windows, activate with `.venv\Scripts\activate`.
 
+**`FIRECRAWL_API_KEY`**: required when the model returns a documentation URL that is not iframe-embeddable (otherwise `POST /api/chat` fails while resolving the doc pane). Loaded from the environment into `app.config["FIRECRAWL_API_KEY"]` in `create_app`.
+
 ### Frontend (React + Vite + MUI X Chat)
 
 ```bash

@@ -39,6 +39,10 @@ def create_app() -> Flask:
     app.config["TERMINAL_PROVIDER"] = terminal_provider
     app.config["TERMINAL_ALLOW_REMOTE"] = _env_bool("TERMINAL_ALLOW_REMOTE", False)
 
+    # Firecrawl (documentation iframe fallback when a URL is not embeddable)
+    _fc_key = (os.environ.get("FIRECRAWL_API_KEY") or "").strip()
+    app.config["FIRECRAWL_API_KEY"] = _fc_key or None
+
     # E2B settings (used when TERMINAL_PROVIDER=e2b)
     app.config["E2B_TEMPLATE_NAME"] = (os.environ.get("E2B_TEMPLATE_NAME") or "interactive-docs-ipython").strip()
     app.config["E2B_ALLOW_INTERNET_ACCESS"] = _env_bool("E2B_ALLOW_INTERNET_ACCESS", True)

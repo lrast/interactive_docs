@@ -20,3 +20,6 @@ app/static/dist/*
 
 # Runtime artifacts
 instance/sessions/
+
+# DEBUG scratch (documentation_display Firecrawl markdown dump; remove with debug code)
+debug/docs.md
