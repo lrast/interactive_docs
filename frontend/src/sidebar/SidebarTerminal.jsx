@@ -7,6 +7,9 @@ import {
   subscribeTerminalRun,
 } from "../state/terminalRunStore.js";
 
+const PING_INTERVAL_MS = 45_000;
+const RECONNECT_DELAY_MS = 400;
+
 function terminalWsUrl() {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.host}/ws/terminal`;
@@ -48,15 +51,55 @@ export function SidebarTerminal() {
     fitAddon.fit();
 
     let socket = null;
+    let boundHandlers = null;
     let cancelled = false;
     const pendingSends = [];
+    let pingTimer = null;
+    let reconnectTimer = null;
+    let sawDisconnect = false;
 
-    const onData = (data) => {
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(data);
+    const clearPingTimer = () => {
+      if (pingTimer != null) {
+        clearInterval(pingTimer);
+        pingTimer = null;
       }
     };
-    term.onData(onData);
+
+    const clearReconnectTimer = () => {
+      if (reconnectTimer != null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
+
+    const startPingIfVisible = () => {
+      clearPingTimer();
+      if (document.visibilityState !== "visible") return;
+      pingTimer = setInterval(() => {
+        if (cancelled || document.visibilityState !== "visible") return;
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "ping" }));
+        }
+      }, PING_INTERVAL_MS);
+    };
+
+    const scheduleReconnect = () => {
+      if (cancelled) return;
+      clearReconnectTimer();
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (cancelled) return;
+        connectSocket();
+      }, RECONNECT_DELAY_MS);
+    };
+
+    const detachSocketHandlers = (ws, handlers) => {
+      if (!ws || !handlers) return;
+      ws.removeEventListener("message", handlers.onMessage);
+      ws.removeEventListener("open", handlers.onOpen);
+      ws.removeEventListener("close", handlers.onClose);
+      ws.removeEventListener("error", handlers.onError);
+    };
 
     const onMessage = (ev) => {
       if (typeof ev.data === "string") {
@@ -66,12 +109,23 @@ export function SidebarTerminal() {
       }
     };
 
+    const onData = (data) => {
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(data);
+      } else if (!cancelled) {
+        pendingSends.push(data);
+        scheduleReconnect();
+      }
+    };
+    term.onData(onData);
+
     const sendRunRequest = (req) => {
       if (!req?.text) return;
       if (socket?.readyState === WebSocket.OPEN) {
         socket.send(req.text);
       } else {
         pendingSends.push(req.text);
+        scheduleReconnect();
       }
     };
 
@@ -117,15 +171,34 @@ export function SidebarTerminal() {
       }
     };
 
-    const onPageHide = () => killSandbox();
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") killSandbox();
+      if (document.visibilityState === "hidden") {
+        clearPingTimer();
+        return;
+      }
+      if (cancelled) return;
+      if (socket?.readyState === WebSocket.OPEN) {
+        startPingIfVisible();
+      }
     };
-
-    window.addEventListener("pagehide", onPageHide);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
-    const startSocket = async () => {
+    const connectSocket = async () => {
+      if (cancelled) return;
+      clearPingTimer();
+      clearReconnectTimer();
+
+      if (socket) {
+        detachSocketHandlers(socket, boundHandlers);
+        try {
+          socket.close();
+        } catch {
+          /* ignore */
+        }
+        socket = null;
+        boundHandlers = null;
+      }
+
       let token = "";
       try {
         const res = await fetch("/api/terminal/token", {
@@ -146,35 +219,74 @@ export function SidebarTerminal() {
 
       const base = terminalWsUrl();
       const url = token ? `${base}?token=${encodeURIComponent(token)}` : base;
-      socket = new WebSocket(url);
-      socket.addEventListener("message", onMessage);
+      const ws = new WebSocket(url);
 
-      socket.addEventListener("open", () => {
+      const onOpen = () => {
+        if (socket !== ws) return;
         fitAddon.fit();
-        sendResize(socket, term);
+        sendResize(ws, term);
         term.focus();
         while (pendingSends.length) {
-          socket.send(pendingSends.shift());
+          ws.send(pendingSends.shift());
         }
-      });
+        if (sawDisconnect) {
+          term.writeln(
+            "\r\n\x1b[90m[Terminal: connected — new backend session (previous connection ended).]\x1b[0m",
+          );
+          sawDisconnect = false;
+        }
+        startPingIfVisible();
+      };
+
+      const handlers = {
+        onMessage,
+        onOpen,
+        onClose: () => {
+          if (cancelled) return;
+          detachSocketHandlers(ws, handlers);
+          if (socket !== ws) return;
+          socket = null;
+          boundHandlers = null;
+          sawDisconnect = true;
+          clearPingTimer();
+          term.writeln(
+            "\r\n\x1b[90m[Terminal: session ended — type here to connect again.]\x1b[0m",
+          );
+        },
+        onError: () => {
+          // Browser typically emits `close` after `error`.
+        },
+      };
+
+      ws.addEventListener("message", handlers.onMessage);
+      ws.addEventListener("open", handlers.onOpen);
+      ws.addEventListener("close", handlers.onClose);
+      ws.addEventListener("error", handlers.onError);
+      boundHandlers = handlers;
+      socket = ws;
     };
 
-    startSocket();
+    connectSocket();
 
     return () => {
       cancelled = true;
+      clearPingTimer();
+      clearReconnectTimer();
       killSandbox();
       unsubscribeRun();
       window.removeEventListener("resize", onWinResize);
-      window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       ro.disconnect();
-      socket?.removeEventListener("message", onMessage);
-      try {
-        socket?.close();
-      } catch {
-        /* ignore */
+      if (socket) {
+        detachSocketHandlers(socket, boundHandlers);
+        try {
+          socket.close();
+        } catch {
+          /* ignore */
+        }
       }
+      socket = null;
+      boundHandlers = null;
       term.dispose();
     };
   }, []);

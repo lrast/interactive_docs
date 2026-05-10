@@ -1,6 +1,8 @@
 """PTY-backed IPython session for WebSocket terminal (Unix only).
 
-Resize control messages are JSON text: {"type":"resize","cols":N,"rows":M}.
+Control messages are JSON text:
+- {"type":"resize","cols":N,"rows":M}
+- {"type":"ping"} — keepalive; does not write to the PTY.
 All other inbound text is written to the PTY as UTF-8.
 """
 
@@ -51,7 +53,7 @@ def handle_terminal_ws(ws) -> None:
 
     # Limits (configurable)
     max_session_seconds = int(current_app.config["TERMINAL_MAX_SESSION_SECONDS"])
-    idle_timeout_seconds = int(current_app.config["TERMINAL_IDLE_TIMEOUT_SECONDS"])
+    idle_timeout_seconds = int(current_app.config["TERMINAL_IDLE_TIMEOUT_SECONDS_LOCAL"])
     max_inbound_bytes = int(current_app.config["TERMINAL_MAX_INBOUND_BYTES"])
 
     def watchdog() -> None:
@@ -63,6 +65,7 @@ def handle_terminal_ws(ws) -> None:
                 except Exception:
                     pass
                 stop.set()
+                _close_ws_best_effort(ws)
                 return
             if idle_timeout_seconds > 0 and now - last_io_at > idle_timeout_seconds:
                 try:
@@ -70,6 +73,7 @@ def handle_terminal_ws(ws) -> None:
                 except Exception:
                     pass
                 stop.set()
+                _close_ws_best_effort(ws)
                 return
             time.sleep(1.0)
 
@@ -101,7 +105,7 @@ def handle_terminal_ws(ws) -> None:
     watchdog_thread.start()
 
     try:
-        while True:
+        while not stop.is_set():
             msg = ws.receive()
             if msg is None:
                 break
@@ -130,6 +134,9 @@ def handle_terminal_ws(ws) -> None:
                     _set_winsize(master_fd, rows, cols)
                 except OSError:
                     pass
+                continue
+
+            if _maybe_ping_json(text):
                 continue
 
             try:
@@ -304,6 +311,9 @@ def handle_terminal_ws_e2b(ws, *, browser_id: str) -> None:
                     pass
                 continue
 
+            if _maybe_ping_json(text):
+                continue
+
             if terminal_pid is None:
                 continue
 
@@ -339,6 +349,16 @@ def handle_terminal_ws_e2b(ws, *, browser_id: str) -> None:
                         pass
 
 
+def _close_ws_best_effort(ws_obj: object) -> None:
+    """Unblock ``ws.receive()`` in the main thread after watchdog shutdown (local PTY)."""
+    close_fn = getattr(ws_obj, "close", None)
+    if callable(close_fn):
+        try:
+            close_fn()
+        except Exception:
+            pass
+
+
 # Helpers: terminal size
 def _set_winsize(master_fd: int, rows: int, cols: int) -> None:
     if sys.platform == "win32":
@@ -366,3 +386,15 @@ def _maybe_resize_json(text: str) -> tuple[bool, int | None, int | None]:
     if rows <= 0 or cols <= 0:
         return False, None, None
     return True, rows, cols
+
+
+def _maybe_ping_json(text: str) -> bool:
+    """If text is a keepalive control message, return True (caller already bumped last_io_at)."""
+    stripped = text.strip()
+    if not stripped.startswith("{"):
+        return False
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(payload, dict) and payload.get("type") == "ping"

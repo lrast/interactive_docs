@@ -1,6 +1,6 @@
 # Interactive Documentation
 
-Quick app, providing access to documentation, a text editor, and terminal in one place, with an AI agent to tie them together.
+Quick demo app, providing access to documentation, a text editor, and terminal in one place, with an AI agent to tie them together.
 
 
 ## Overview
@@ -118,7 +118,7 @@ There is no public HTTP endpoint for ad-hoc pip installs; wire installs through 
 When token/origin enforcement is enabled (defaults are secure for `e2b`):
 
 - The frontend calls **`POST /api/terminal/token`** to mint a short-lived one-time token.
-- The frontend calls **`POST /api/terminal/kill`** on page hide / background to best-effort stop the session E2B sandbox.
+- **`POST /api/terminal/kill`** remains available to best-effort stop the active session sandbox (for example when unmounting the terminal UI); the client does not call it automatically on tab visibility changes.
 - The terminal WebSocket must connect to **`/ws/terminal?token=...`**.
 - The server rejects mismatched `Origin` and invalid/expired tokens.
 
@@ -131,8 +131,11 @@ Config env vars:
 ### Limits / abuse controls
 
 - **`TERMINAL_MAX_SESSION_SECONDS`**: max WS session duration (default `3600`, set `0` to disable)
-- **`TERMINAL_IDLE_TIMEOUT_SECONDS`**: idle timeout (default `300`, set `0` to disable)
+- **`TERMINAL_IDLE_TIMEOUT_SECONDS`**: idle timeout for **E2B** terminal sessions (default `300`, set `0` to disable)
+- **`TERMINAL_IDLE_TIMEOUT_SECONDS_LOCAL`**: idle timeout for **local PTY** terminal sessions only (default `1200` / 20 minutes, set `0` to disable)
 - **`TERMINAL_MAX_INBOUND_BYTES`**: per-message size limit (default `65536`)
+
+The browser terminal sends periodic **`{"type":"ping"}`** JSON messages while the tab is visible to refresh the server idle clock (and to help with some proxy idle WebSocket timeouts).
 
 ## Chat API (stub)
 

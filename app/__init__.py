@@ -60,6 +60,9 @@ def create_app() -> Flask:
     # Limits / abuse controls
     app.config["TERMINAL_MAX_SESSION_SECONDS"] = _env_int("TERMINAL_MAX_SESSION_SECONDS", 3600)
     app.config["TERMINAL_IDLE_TIMEOUT_SECONDS"] = _env_int("TERMINAL_IDLE_TIMEOUT_SECONDS", 300)
+    app.config["TERMINAL_IDLE_TIMEOUT_SECONDS_LOCAL"] = _env_int(
+        "TERMINAL_IDLE_TIMEOUT_SECONDS_LOCAL", 1200
+    )
     app.config["TERMINAL_MAX_INBOUND_BYTES"] = _env_int("TERMINAL_MAX_INBOUND_BYTES", 65536)
 
     # Session-scoped E2B package install settings
@@ -97,6 +100,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw == "":
         return default
     return raw.strip().lower() in ("1", "true", "yes")
+
 
 def _env_int(name: str, default: int) -> int:
     raw = os.environ.get(name, "")
