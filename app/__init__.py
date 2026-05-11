@@ -75,6 +75,8 @@ def create_app() -> Flask:
     app.config["TERMINAL_PIP_INSTALL_TIMEOUT_SECONDS"] = _env_int(
         "TERMINAL_PIP_INSTALL_TIMEOUT_SECONDS", 600
     )
+    # Dummy setting (intentionally unused): not implemented for safety reasons
+    app.config["PIP_INSTALL_AT_LOCAL"] = _env_bool("PIP_INSTALL_AT_LOCAL", False)
 
     Session(app)
 

@@ -14,7 +14,7 @@ from app.terminal_manager import TerminalManager
 from app.terminal_pip import (
     _SESSION_PIP_REQUIREMENTS_KEY,
     merge_pip_requirements,
-    pip_install_requirements_into_session_sandbox,
+    maybe_install_pip_requirements_for_terminal_session
 )
 
 bp = Blueprint("chat", __name__, url_prefix="/api")
@@ -50,38 +50,25 @@ def chat_stream():
     documentation_url = reply.documentation_url
     pip_requirements = reply.pip_requirements
 
-    # install pip requirements into the sandbox if running in e2b
-    # note: struggles with torch due to space requirements from cuda packages
-    # this should probably be handled by the AI agent.
+    # E2B: install into the session sandbox (when configured + available).
 
     browser_id = str(session.get("browser_id") or "").strip()
     sandbox_id_for_session = (
         TerminalManager.get_active_sandbox_id(browser_id=browser_id) if browser_id else None
     )
     terminal_provider = str(current_app.config["TERMINAL_PROVIDER"]).strip().lower()
-
-    if terminal_provider in ("e2b", "e2b-sandbox"):
-        sandbox_id = sandbox_id_for_session or ""
-        print('sandbox_id', sandbox_id)
-        if isinstance(sandbox_id, str) and sandbox_id.strip():
-            if isinstance(pip_requirements, str):
-                req_lines = [ln.strip() for ln in pip_requirements.splitlines()]
-            else:
-                req_lines = list(pip_requirements or [])
-
-            result, err2, status = pip_install_requirements_into_session_sandbox(
-                sandbox_id=str(sandbox_id),
-                requirements=req_lines,
-            )
-            print('result')
-            if err2 is not None:
-                raise RuntimeError(f"pip install failed ({status}): {err2}")
-            assert result is not None
-            normalized = result.get("normalized_requirements", None)
-            if isinstance(normalized, list) and all(isinstance(x, str) for x in normalized):
-                session[_SESSION_PIP_REQUIREMENTS_KEY] = merge_pip_requirements(
-                    session.get(_SESSION_PIP_REQUIREMENTS_KEY), normalized
-                )
+    normalized, err2, status = maybe_install_pip_requirements_for_terminal_session(
+        terminal_provider=terminal_provider,
+        sandbox_id=sandbox_id_for_session,
+        pip_requirements=pip_requirements,
+    )
+    flash_message: str | None = None
+    if err2 is not None:
+        flash_message = "pip install failed"
+    if isinstance(normalized, list) and all(isinstance(x, str) for x in normalized):
+        session[_SESSION_PIP_REQUIREMENTS_KEY] = merge_pip_requirements(
+            session.get(_SESSION_PIP_REQUIREMENTS_KEY), normalized
+        )
 
     doc_display = resolve_documentation_display(documentation_url)
     out_url = doc_display.documentation_url
@@ -107,6 +94,7 @@ def chat_stream():
                 "displayedUrl": out_url,
                 "fallbackHtml": fallback_html,
                 "useFallback": use_fallback,
+                "flashMessage": flash_message,
             }
         )
 
@@ -130,6 +118,7 @@ def chat_stream():
                 "displayedUrl": out_url,
                 "fallbackHtml": fallback_html,
                 "useFallback": use_fallback,
+                "flashMessage": flash_message,
             }
         )
 

@@ -28,7 +28,6 @@ agent = Agent('openai:gpt-5.2', instructions=system_prompt,
 @agent.tool_plain
 def verify_url(url: str) -> str:
     """ Verifies if a documentation URL is live."""
-    print('verify called', url)
     result = requests.get(url)
 
     if result.status_code == 200:

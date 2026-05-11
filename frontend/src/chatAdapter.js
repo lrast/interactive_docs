@@ -7,6 +7,7 @@ import {
   setMainDocIframeFallbackHtml,
   setMainDocIframeSrc,
 } from "./state/mainDocIframeStore.js";
+import { setFlashMessage } from "./state/flashStore.js";
 
 function applyUiStateFromChunk(chunk) {
   if (!chunk || typeof chunk !== "object") return;
@@ -18,7 +19,8 @@ function applyUiStateFromChunk(chunk) {
     typeof chunk.editorContent !== "string" &&
     typeof chunk.displayedUrl !== "string" &&
     typeof chunk.useFallback !== "boolean" &&
-    typeof chunk.fallbackHtml !== "string"
+    typeof chunk.fallbackHtml !== "string" &&
+    typeof chunk.flashMessage !== "string"
   ) {
     return;
   }
@@ -36,6 +38,10 @@ function applyUiStateFromChunk(chunk) {
       displayedUrl: typeof chunk.displayedUrl === "string" ? chunk.displayedUrl : undefined,
       useFallback: typeof chunk.useFallback === "boolean" ? chunk.useFallback : undefined,
     });
+  }
+
+  if (typeof chunk.flashMessage === "string") {
+    setFlashMessage(chunk.flashMessage);
   }
 
   // Deterministic render decision: backend decides embeddability.
