@@ -5,11 +5,16 @@ Quick demo app, providing access to documentation, a text editor, and terminal i
 
 ## Overview
 
-Local web app: Flask backend, HTML templates (Jinja2), CSS under `app/static/css/`, and **React (JSX)** built with **Vite** into `app/static/dist/` for pages that opt in.
+Local web app: Flask backend, HTML templates (Jinja2), CSS under `app/static/css/`, and React (JSX) built with Vite into `app/static/dist/`.
 
-The home page includes a **chat bar** at the **bottom of the main (left) column** built with [**MUI X Chat**](https://mui.com/x/react-chat/) (`@mui/x-chat`) and **Material UI**. It talks to Flask **`POST /api/chat`**, which streams **newline-delimited JSON** chunks compatible with MUI X Chat’s stream processor.
+Pydantic AI provides a framework for for AI agents tool calling and output parsing, prompts under `app/prompts/`.
 
-**`@mui/x-chat` is alpha** on npm; APIs may change between releases. Pin or upgrade deliberately.
+e2b provides cloud terminal instances.
+
+Firecrawl fetches static versions or pages that are not iframe embeddable.
+
+
+
 
 Requires **Python 3.10+** and **Node.js 18+**.
 
@@ -25,11 +30,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-On Windows, activate with `.venv\Scripts\activate`.
-
-**`FIRECRAWL_API_KEY`**: required when the model returns a documentation URL that is not iframe-embeddable (otherwise `POST /api/chat` fails while resolving the doc pane). Loaded from the environment into `app.config["FIRECRAWL_API_KEY"]` in `create_app`.
-
-### Frontend (React + Vite + MUI X Chat)
+### Frontend
 
 ```bash
 cd frontend
@@ -39,11 +40,21 @@ npm run build
 
 The build writes `app/static/dist/assets/main.js` and `main.css`. Flask serves them as `/static/dist/assets/...`. Run `npm run build` whenever you change `frontend/src/` before loading the app via Flask (unless you use the Vite dev server; see below).
 
-`@mui/x-chat` depends on **`@mui/icons-material`** for some UI affordances; it is listed in `frontend/package.json` so Vite can bundle it.
+### Environment
 
-## Run Flask
+Flask reads configuration from the process environment. The following API keys should be set in a `.env` file or by `export`.
+- **`SECRET_KEY`**: signing key for sessions and cookies. Defaults to a dev-only value; set explicitly in production.
+- **`OPENAI_API_KEY`**: required for a agent calls (app/ai_calls.py). Pydantic-ai uses the provider’s usual credential environment variables, and can be modified to use an alternate model provider.
+- **`FIRECRAWL_API_KEY`**: used for fetching documentation sites that are not iframe-embeddable.
+- **`E2B_API_KEY`**: required to use e2b instances as remote terminals.
+  * altenatively, ensure that **`TERMINAL_PROVIDER`** is set to `local` (default).
 
-**Recommended (Flask CLI, reload on Python/template changes):**
+This application does not install pip requirements (or anything else) on local terminals, so requirements should be installed there as well.
+
+
+## Run
+
+### Recommended (Flask CLI, reload on Python/template changes):
 
 ```bash
 flask --app app:create_app run --debug --host 127.0.0.1
@@ -61,99 +72,116 @@ python run.py
 python -m app
 ```
 
-Open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
+### Hot reloading for frontend development
 
-## Sidebar IPython terminal (dev)
+- **Rebuild on save + Flask:** in `frontend/`, run `npm run build:watch` in one terminal and Flask in another. Refresh the browser after each build.
+- **Vite dev server:** `cd frontend && npm run dev` (e.g. [http://localhost:5173/](http://localhost:5173/)). **`vite.config.js`** proxies **`/api`** and **`/ws`** to **`http://127.0.0.1:5000`** — run Flask on port 5000 while using Vite for HMR. The Vite `index.html` only mounts React; for the full Jinja layout, use Flask.
 
-- The lower right sidebar runs a real **`ipython`** session in the browser (**xterm.js** + **`/ws/terminal`** WebSocket + PTY). Requires **`ipython`** from `requirements.txt` (installed with the venv).
-- **Unix only** (macOS / Linux). On Windows the WebSocket responds with an unsupported message instead of spawning a PTY.
-- **Security:** this is **arbitrary code execution** as your Flask OS user. Treat it as **localhost-only, single-user tooling**. Do not expose it on the public internet without strong isolation, auth, and hardening.
-- Implementation: [`app/terminal_session.py`](app/terminal_session.py), [`app/terminal_routes.py`](app/terminal_routes.py).
+
+### Open
+
+[http://127.0.0.1:5000/](http://127.0.0.1:5000/).
+
+
+
+## Key Settings
+
+Optional and deployment-related environment variables are read in [`app/__init__.py`](app/__init__.py). **`SECRET_KEY`**, **`OPENAI_API_KEY`**, **`FIRECRAWL_API_KEY`**, and **`E2B_API_KEY`** are summarized under [Environment](#environment) above.
+
+### Flask and sessions
+
+- **`FLASK_SESSION_COOKIE_SECURE`**: `1` or `0` — set session cookies `Secure` when the site is served over HTTPS (default `0`).
+- **`SESSION_LIFETIME_DAYS`**: signed session lifetime in days (default `31`).
+- **`FLASK_SESSION_TYPE`**: Flask-Session backend type (default `filesystem`).
+- **`FLASK_SESSION_FILE_DIR`**: directory for filesystem-backed sessions (defaults under the app instance path).
+
+### Terminal provider and E2B
+
+- **`TERMINAL_PROVIDER`**: `local` (default), `e2b`, or `disabled`. See [Terminal providers](#terminal-providers-local-vs-e2b).
+- **`TERMINAL_ALLOW_REMOTE`**: `1` or `0` — relax localhost-only assumptions when you intend remote access (default `0`).
+- **`E2B_TEMPLATE_NAME`**: E2B sandbox template id (default `interactive-docs-ipython`).
+- **`E2B_ALLOW_INTERNET_ACCESS`**: `1` or `0` — allow outbound network from E2B sandboxes (default **`1`** in application code). Set **`0`** when dependencies are baked into the template and you want no runtime egress. Server-side pip installs into the live sandbox require **`1`**.
+
+### Terminal WebSocket security
+
+- **`TERMINAL_REQUIRE_TOKEN`**: `1` or `0` — require a minted token on `/ws/terminal` (defaults **`1`** for `e2b`, **`0`** for `local`).
+- **`TERMINAL_ENFORCE_ORIGIN`**: `1` or `0` — validate `Origin` on the terminal WebSocket (default **`1`**).
+- **`TERMINAL_WS_TOKEN_TTL_SECONDS`**: one-time token lifetime in seconds (default **`60`**).
+
+### Terminal limits and pip install guards
+
+- **`TERMINAL_MAX_SESSION_SECONDS`**: maximum WebSocket session length (default **`3600`**; **`0`** disables).
+- **`TERMINAL_IDLE_TIMEOUT_SECONDS`**: idle disconnect for **E2B** sessions (default **`300`** seconds; **`0`** disables).
+- **`TERMINAL_IDLE_TIMEOUT_SECONDS_LOCAL`**: idle disconnect for **local PTY** sessions only (default **`1200`**; **`0`** disables).
+- **`TERMINAL_MAX_INBOUND_BYTES`**: maximum inbound WebSocket message size (default **`65536`**).
+- **`TERMINAL_MAX_PIP_REQUIREMENTS_LINES`**: max lines accepted for a pip requirements batch (default **`50`**).
+- **`TERMINAL_MAX_PIP_REQUIREMENT_LINE_CHARS`**: max characters per requirement line (default **`200`**).
+- **`TERMINAL_PIP_INSTALL_TIMEOUT_SECONDS`**: timeout for server-side pip installs into an E2B sandbox (default **`600`**).
+
+## Sidebar IPython terminal
+
+- The lower-right sidebar runs **`ipython`** in the browser over **xterm.js**, a **`/ws/terminal`** WebSocket, and a PTY. **`ipython`** is listed in `requirements.txt`.
+- **Unix only** (macOS / Linux). On Windows the socket responds with an unsupported message instead of spawning a PTY.
+- **Security:** arbitrary code execution as the Flask OS user. Treat as **localhost-only, single-user** tooling; do not expose without isolation, authentication, and hardening.
+- Code: [`app/terminal_session.py`](app/terminal_session.py), [`app/terminal_routes.py`](app/terminal_routes.py).
 
 ## Terminal providers (local vs E2B)
 
-The app supports multiple terminal execution providers controlled by env vars.
+| Mode | Behavior |
+|------|----------|
+| **`TERMINAL_PROVIDER=local`** (default) | PTY + `ipython` on the same host as Flask. Intended for **local development**; access is guarded for localhost. |
+| **`TERMINAL_PROVIDER=e2b`** | Terminal runs inside an **E2B** sandbox (better fit for deployment). Requires **`E2B_API_KEY`** and the **`e2b`** package from `requirements.txt`. |
+| **`TERMINAL_PROVIDER=disabled`** | Terminal WebSocket is disabled. |
 
-- **`TERMINAL_PROVIDER=local`** (default): local PTY + `ipython` on the same machine as Flask (**dev-only**; localhost guarded).
-- **`TERMINAL_PROVIDER=e2b`**: run the terminal inside an **E2B sandbox** (safer for deployment).
-- **`TERMINAL_PROVIDER=disabled`**: disables the terminal WebSocket.
+### E2B quick start
 
-### E2B setup
-
-- Install deps:
-
-```bash
-pip install -r requirements.txt
-```
-
-- Set env:
-  - **`E2B_API_KEY`**: required by the E2B SDK
-  - **`TERMINAL_PROVIDER=e2b`**
-  - **`E2B_TEMPLATE_NAME=interactive-docs-ipython`** (recommended; see below)
+1. Install dependencies: `pip install -r requirements.txt` (includes **`e2b`**).
+2. Set **`TERMINAL_PROVIDER=e2b`**, **`E2B_API_KEY`**, and optionally **`E2B_TEMPLATE_NAME`** (defaults and tuning: [Key Settings](#key-settings)).
 
 ### E2B IPython template (recommended)
 
-The default E2B base sandbox may not include `ipython`. To ensure the terminal starts an IPython REPL **without enabling outbound network at runtime**, build a custom E2B template that bakes `ipython` in.
-
-- Build the template:
+Stock E2B images may not include `ipython`. Build a template that installs it so the REPL works **without** relying on runtime network access:
 
 ```bash
 python e2b/build_template.py
 ```
 
-- Then run the app with:
-  - **`E2B_TEMPLATE_NAME=interactive-docs-ipython`**
-  - **`E2B_ALLOW_INTERNET_ACCESS=0`** (default)
+Point **`E2B_TEMPLATE_NAME`** at that template (for example **`interactive-docs-ipython`**). After dependencies are baked in, you can run with **`E2B_ALLOW_INTERNET_ACCESS=0`** if you want no outbound network from sandboxes. Application default for that flag is **`1`** (see [Key Settings](#key-settings)).
 
-### Install packages during a live E2B session
+### Pip installs in a live E2B session
 
-When `TERMINAL_PROVIDER=e2b` and **`E2B_ALLOW_INTERNET_ACCESS=1`**, server code can install pip packages into the
-current browser session's sandbox using **`app.terminal_pip.pip_install_requirements_into_session_sandbox`**
-(requirements as a list of strings; returns `exit_code`, `stdout`, `stderr`, and `normalized_requirements` on success).
+When **`TERMINAL_PROVIDER=e2b`** and **`E2B_ALLOW_INTERNET_ACCESS=1`**, backend code can install packages into the **current** browser session’s sandbox via **`app.terminal_pip.pip_install_requirements_into_session_sandbox`** (requirements as a list of strings; on success you get `exit_code`, `stdout`, `stderr`, and `normalized_requirements`). There is no public HTTP route for ad-hoc installs—call this from your chat flow or another trusted server path.
 
-There is no public HTTP endpoint for ad-hoc pip installs; wire installs through your chat or other backend flow.
+### WebSocket security (production)
 
-### WebSocket security (recommended for deploy)
+With token and origin checks enabled (defaults favor safety for **`e2b`**):
 
-When token/origin enforcement is enabled (defaults are secure for `e2b`):
+1. The client calls **`POST /api/terminal/token`** for a short-lived, one-time token.
+2. The WebSocket connects to **`/ws/terminal?token=...`**.
+3. The server rejects bad `Origin` headers and invalid or expired tokens.
+4. **`POST /api/terminal/kill`** can stop the active sandbox (for example when the terminal UI unmounts); the client does not call it automatically on tab visibility changes.
 
-- The frontend calls **`POST /api/terminal/token`** to mint a short-lived one-time token.
-- **`POST /api/terminal/kill`** remains available to best-effort stop the active session sandbox (for example when unmounting the terminal UI); the client does not call it automatically on tab visibility changes.
-- The terminal WebSocket must connect to **`/ws/terminal?token=...`**.
-- The server rejects mismatched `Origin` and invalid/expired tokens.
+Environment variables: [Key Settings → Terminal WebSocket security](#terminal-websocket-security).
 
-Config env vars:
+### Idle clock and limits
 
-- **`TERMINAL_REQUIRE_TOKEN`**: `1|0` (defaults to `1` for `e2b`, `0` for `local`)
-- **`TERMINAL_ENFORCE_ORIGIN`**: `1|0` (default `1`)
-- **`TERMINAL_WS_TOKEN_TTL_SECONDS`**: token TTL (default `60`)
+While the tab is visible, the browser sends periodic **`{"type":"ping"}`** messages so the server can refresh idle timers and mitigate some proxy timeouts. Numeric limits are listed under [Key Settings → Terminal limits and pip install guards](#terminal-limits-and-pip-install-guards).
 
-### Limits / abuse controls
+## Chat
 
-- **`TERMINAL_MAX_SESSION_SECONDS`**: max WS session duration (default `3600`, set `0` to disable)
-- **`TERMINAL_IDLE_TIMEOUT_SECONDS`**: idle timeout for **E2B** terminal sessions (default `300`, set `0` to disable)
-- **`TERMINAL_IDLE_TIMEOUT_SECONDS_LOCAL`**: idle timeout for **local PTY** terminal sessions only (default `1200` / 20 minutes, set `0` to disable)
-- **`TERMINAL_MAX_INBOUND_BYTES`**: per-message size limit (default `65536`)
+The home chat bar sits at the **bottom of the main (left) column**. It uses [**MUI X Chat**](https://mui.com/x/react-chat/) (`@mui/x-chat`) and **Material UI**. **`@mui/x-chat` is alpha** on npm—pin or upgrade deliberately. It pulls in **`@mui/icons-material`** (declared in `frontend/package.json`).
 
-The browser terminal sends periodic **`{"type":"ping"}`** JSON messages while the tab is visible to refresh the server idle clock (and to help with some proxy idle WebSocket timeouts).
-
-## Chat API (stub)
-
-- **`POST /api/chat`** — JSON body: `{ "conversationId": "...", "message": { "id", "role", "parts" } }`.
-- Response: **`application/x-ndjson`** stream; each line is one JSON object (`start`, `text-delta`, `text-end`, `finish`, …) for MUI X Chat.
-- Implementation: [`app/chat.py`](app/chat.py) (streaming stub; replace with a real model later).
-
-## Frontend development
-
-- **Rebuild on save + Flask:** in `frontend/`, run `npm run build:watch` in one terminal and Flask in another. Refresh the browser after each build.
-- **Vite dev server:** `cd frontend && npm run dev` (e.g. [http://localhost:5173/](http://localhost:5173/)). **`vite.config.js`** proxies **`/api`** and **`/ws`** to **`http://127.0.0.1:5000`** — run Flask on port 5000 while using Vite for HMR. The Vite `index.html` only mounts React; for the full Jinja layout, use Flask.
+- **`POST /api/chat`** — JSON body includes `conversationId`, `message` (`id`, `role`, `parts`), and optional editor and documentation URL fields the UI sends (see [`app/chat.py`](app/chat.py)).
+- **Response:** **`application/x-ndjson`**; each line is one JSON object (`start`, `text-delta`, `text-end`, `ui-state`, `finish`, …) for MUI X Chat’s stream processor.
+- **Model:** requests are handled with **Pydantic AI** in [`app/ai_calls.py`](app/ai_calls.py) (`OPENAI_API_KEY` and related provider env vars per [Environment](#environment)).
 
 ## Layout
 
-- `app/__init__.py` — application factory `create_app()`
-- `app/routes.py` — routes (blueprint `main`)
-- `app/chat.py` — `POST /api/chat` streaming stub (blueprint `chat`, prefix `/api`)
-- `app/terminal_routes.py` — HTTP routes + WebSocket **`/ws/terminal`** (flask-sock) for the sidebar IPython PTY
-- `app/templates/` — Jinja; React mounts at `#main-chat-root` in **`page__chat-bar`** (bottom of the left column only)
+- `app/__init__.py` — `create_app()`
+- `app/routes.py` — blueprint `main`
+- `app/chat.py` — blueprint `chat`, prefix `/api`; **`POST /api/chat`** streaming NDJSON
+- `app/ai_calls.py` — Pydantic AI agent and tools for chat
+- `app/terminal_routes.py` — HTTP routes plus WebSocket **`/ws/terminal`** (flask-sock)
+- `app/templates/` — Jinja; React mounts at `#main-chat-root` in **`page__chat-bar`**
 - `app/static/` — CSS and Vite output under `app/static/dist/`
-- `frontend/` — Vite + React source, `npm run build` → `app/static/dist/`
+- `frontend/` — Vite + React source; `npm run build` writes `app/static/dist/`
