@@ -5,15 +5,16 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 import bleach
 import markdown
+import requests
 from firecrawl import Firecrawl
 
 from flask import current_app
+
+from .http_url_policy import reject_local_or_private_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,15 @@ def resolve_documentation_display(documentation_url: str) -> DocumentationDispla
     )
 
     if not url or not _is_valid_http_documentation_url(url):
+        return DocumentationDisplayResult(
+            documentation_url=url,
+            use_fallback=False,
+            fallback_html=empty_html,
+        )
+
+    try:
+        reject_local_or_private_http_url(url)
+    except ValueError:
         return DocumentationDisplayResult(
             documentation_url=url,
             use_fallback=False,
@@ -108,23 +118,18 @@ def _is_iframe_embeddable_url(url: str) -> bool:
     if parsed.scheme not in ("http", "https"):
         return False
 
-    req = Request(
-        url,
-        method="HEAD",
-        headers={
-            "User-Agent": "interactive-docs/1.0 (+iframe-embeddability-preflight)",
-            "Accept": "*/*",
-        },
-    )
-
     try:
-        with urlopen(req, timeout=2.0) as resp:
-            headers = resp.headers
-    except HTTPError:
-        return False
-    except URLError:
-        return False
-    except Exception:
+        resp = requests.head(
+            url,
+            timeout=2.0,
+            allow_redirects=False,
+            headers={
+                "User-Agent": "interactive-docs/1.0 (+iframe-embeddability-preflight)",
+                "Accept": "*/*",
+            },
+        )
+        headers = resp.headers
+    except requests.RequestException:
         return False
 
     xfo = (headers.get("X-Frame-Options") or "").strip().lower()

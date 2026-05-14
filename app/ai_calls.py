@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from pydantic_ai.messages import ModelMessagesTypeAdapter
 from flask import current_app
 
+from .http_url_policy import reject_local_or_private_http_url
+
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 system_prompt = (_PROMPTS_DIR / "system_prompt.txt").read_text(encoding="utf-8")
@@ -28,7 +30,11 @@ agent = Agent('openai:gpt-5.2', instructions=system_prompt,
 @agent.tool_plain
 def verify_url(url: str) -> str:
     """ Verifies if a documentation URL is live."""
-    result = requests.get(url)
+    try:
+        reject_local_or_private_http_url(url)
+    except ValueError as exc:
+        return str(exc)
+    result = requests.get(url, timeout=10, allow_redirects=False)
 
     if result.status_code == 200:
         return 'The URL is live'

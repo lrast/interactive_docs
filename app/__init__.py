@@ -19,7 +19,7 @@ def create_app() -> Flask:
     app.config["SESSION_COOKIE_NAME"] = "interactive_docs_session"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["SESSION_COOKIE_SECURE"] = _env_bool("FLASK_SESSION_COOKIE_SECURE", False)
+    app.config["SESSION_COOKIE_SECURE"] = _env_bool("FLASK_SESSION_COOKIE_SECURE", True)
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
         days=_env_int("SESSION_LIFETIME_DAYS", 31)
     )
@@ -35,8 +35,12 @@ def create_app() -> Flask:
         app.config["SESSION_FILE_DIR"] = session_dir
 
     # Terminal / sandbox settings (centralized env handling)
+    deployed = _env_bool("INTERACTIVE_DOCS_DEPLOYED", False)
+    app.config["DEPLOYED"] = deployed
+
     terminal_provider = (os.environ.get("TERMINAL_PROVIDER") or "local").strip().lower()
     app.config["TERMINAL_PROVIDER"] = terminal_provider
+    _require_non_local_terminal_when_deployed(deployed=deployed, terminal_provider=terminal_provider)
     app.config["TERMINAL_ALLOW_REMOTE"] = _env_bool("TERMINAL_ALLOW_REMOTE", False)
 
     # Firecrawl (documentation iframe fallback when a URL is not embeddable)
@@ -112,3 +116,17 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except ValueError:
         return default
+
+
+_LOCAL_TERMINAL_PROVIDERS = frozenset({"local", "local-pty", "pty"})
+
+
+def _require_non_local_terminal_when_deployed(*, deployed: bool, terminal_provider: str) -> None:
+    if not deployed:
+        return
+    p = str(terminal_provider or "").strip().lower()
+    if p in _LOCAL_TERMINAL_PROVIDERS:
+        raise RuntimeError(
+            "INTERACTIVE_DOCS_DEPLOYED is enabled but TERMINAL_PROVIDER selects a local PTY "
+            f"({p!r}). In deployed environments use TERMINAL_PROVIDER=e2b (or disabled)."
+        )
