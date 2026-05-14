@@ -13,7 +13,7 @@ def create_app() -> Flask:
         static_folder="static",
     )
 
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-in-production")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
 
     # Session settings
     app.config["SESSION_COOKIE_NAME"] = "interactive_docs_session"
