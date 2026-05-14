@@ -1,3 +1,4 @@
+import logging
 import requests
 from pydantic_ai import Agent
 
@@ -8,6 +9,7 @@ from flask import current_app
 
 from .http_url_policy import reject_local_or_private_http_url
 
+_logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 system_prompt = (_PROMPTS_DIR / "system_prompt.txt").read_text(encoding="utf-8")
@@ -47,7 +49,18 @@ def call_ai(user_input: dict, session: dict) -> AiReply:
     user_prompt = user_prompt_template.format(**user_input)
 
     message_history = _load_message_history(session)
-    result = agent.run_sync(user_prompt, message_history=message_history)
+    _logger.info(
+        "call_ai started user_keys=%s prompt_chars=%d history_messages=%d",
+        sorted(user_input.keys()),
+        len(user_prompt),
+        len(message_history),
+    )
+
+    try:
+        result = agent.run_sync(user_prompt, message_history=message_history)
+    except Exception:
+        _logger.exception("call_ai failed during agent.run_sync")
+        raise
 
     try:
         max_messages = int(current_app.config.get("MAX_HISTORY_MESSAGES", 80))
@@ -59,7 +72,15 @@ def call_ai(user_input: dict, session: dict) -> AiReply:
     )
     session.modified = True
 
-    return result.output
+    reply = result.output
+    _logger.info(
+        "call_ai completed response_chars=%d editor_chars=%d documentation_url=%r pip_requirements_count=%d",
+        len(reply.response),
+        len(reply.editor_content),
+        reply.documentation_url,
+        len(reply.pip_requirements),
+    )
+    return reply
 
 
 # Message history helpers. To do: server-side rather than session storage
