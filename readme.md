@@ -62,11 +62,7 @@ flask --app app:create_app run --debug --host 127.0.0.1
 
 Use **`--host 127.0.0.1`** (not `0.0.0.0`) so the sidebar **IPython terminal** (WebSocket + PTY) is not exposed on your LAN. The terminal runs shell code as the same OS user as Flask.
 
-**Alternatives:**
-
-```bash
-python run.py
-```
+**Alternative:**
 
 ```bash
 python -m app
